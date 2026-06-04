@@ -68,10 +68,12 @@
     PULL: {
       lookbackDays: 365,  // only orders newer than this feed Recency/Frequency/Monetary
       perPage:      100,  // Salla page size
-      maxPages:     250   // hard cap. The NIGHTLY BACKGROUND FUNCTION does the pull now
+      maxPages:     250,  // hard cap. The NIGHTLY BACKGROUND FUNCTION does the pull now
                           // (15-min budget), so this can comfortably cover the biggest
                           // store (HATCH ≈ 198 pages). The request-time endpoint no longer
                           // pulls from Salla — it just reads the precomputed JSON from Blobs.
+      monthlyMonths: 13,  // how many trailing months to keep in the monthly trend series
+      geoTopCities:  20   // how many cities to keep in the geographic breakdown
     },
 
     /* 4) ───────── FIELD_MAP — where to read each value inside a Salla order ───
@@ -84,7 +86,13 @@
       customerLast:     { path: "customer.last_name",     fallback: [] },
       createdAt:        { path: "date.date",              fallback: ["created_at", "date"] },
       total:            { path: "amounts.total.amount",   fallback: ["total.amount", "total", "amounts.total"] },
-      statusSlug:       { path: "status.slug",            fallback: ["status.name"] }
+      statusSlug:       { path: "status.slug",            fallback: ["status.name"] },
+      // City for the geographic view. NOTE: the orders LIST payload does NOT include
+      // ship_to (national address) — that only appears on single-order detail, which
+      // would mean one extra call per order. So we read customer.city here (present in
+      // the list payload). ship_to.city is kept as the primary path in case Salla adds
+      // it to the list later. VERIFY via ?debug=1.  value may be a string or {name}.
+      shipCity:         { path: "ship_to.city",           fallback: ["customer.city", "shipping.city", "ship_to.city.name"] }
     },
 
     /* 5) ───────── statuses to EXCLUDE from spend/frequency ───────────────────
@@ -167,6 +175,24 @@
       auth: {
         prompt: "هذه اللوحة محمية. أدخل كلمة مرور الوصول للمتابعة:",
         wrong: "كلمة المرور غير صحيحة. حاول مرة أخرى."
+      },
+      monthly: {
+        filterLabel: "الشهر",
+        allTime: "كل الفترة",
+        trendsTitle: "الاتجاهات الشهرية",
+        tableTitle: "التفصيل الشهري (للتقرير)",
+        revLabel: "المبيعات",
+        ordersLabel: "الطلبات",
+        newCustomers: "عملاء جدد",
+        buyers: "عملاء مشترون",
+        cols: { month: "الشهر", sales: "المبيعات", orders: "الطلبات", aov: "متوسط الطلب", newCust: "عملاء جدد", buyers: "المشترون" },
+        snapshotNote: "ملاحظة: الشرائح ودورة الحياة ومراحل الرحلة تعكس الوضع الحالي ولا تتأثر بفلتر الشهر — الأرقام الشهرية أعلاه مبنية على الطلبات."
+      },
+      geo: {
+        title: "التوزيع الجغرافي — أعلى المدن",
+        sub: "حسب مدينة العميل (الإيرادات وعدد العملاء)",
+        cols: { city: "المدينة", revenue: "الإيرادات", customers: "العملاء", orders: "الطلبات" },
+        unknown: "غير محدد"
       },
       footer: "نسخة مباشرة · العتبات قابلة للتعديل من ملف config.js"
     }

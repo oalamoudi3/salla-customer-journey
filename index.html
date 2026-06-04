@@ -117,7 +117,23 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
   </div>
   <div class="banner" id="banner"></div>
 
+  <div class="statusbar" style="margin-top:-4px">
+    <label class="sub" id="t-month" for="monthFilter"></label>
+    <select id="monthFilter"></select>
+    <span class="sub" id="monthHint"></span>
+  </div>
+  <div class="banner" id="snapshotNote" style="display:none"></div>
+
   <section class="kpis" id="kpis"><div class="spinner">جارٍ التحميل…</div></section>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <div class="sec-head"><h2 id="t-trends"></h2></div>
+    <canvas id="trendChart"></canvas>
+    <div class="tbl-wrap" style="margin-top:16px">
+      <div class="sub" id="t-monthly-table" style="margin-bottom:8px"></div>
+      <table id="monthlyTable"><thead><tr id="monthlyHead"></tr></thead><tbody id="monthlyBody"></tbody></table>
+    </div>
+  </div>
 
   <div class="grid2">
     <div class="card"><h2 id="t-seg"></h2><canvas id="segChart"></canvas></div>
@@ -130,6 +146,11 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
 
   <div class="sec-head"><div><h2 id="t-journey"></h2><div class="sub" id="t-journey-sub"></div></div></div>
   <div class="journey" id="journey"></div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <div class="sec-head"><div><h2 id="t-geo"></h2><div class="sub" id="t-geo-sub"></div></div></div>
+    <div class="tbl-wrap"><table id="geoTable"><thead><tr id="geoHead"></tr></thead><tbody id="geoBody"></tbody></table></div>
+  </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
     <div class="sec-head"><h2 id="t-act"></h2></div>
@@ -159,7 +180,8 @@ const C = window.CONFIG, U = C.UI, S = window.SEG;
 let current = Object.keys(C.STORES)[0];
 let cache = {};                     // storeKey → aggregate object
 let segFilterVal = "", custSort = {k:"revenue",dir:-1}, actSort = {k:"revenue",dir:-1};
-let segChart, revChart;
+let monthSel = "";                  // "" = all time; else "YYYY-MM"
+let segChart, revChart, trendChart;
 const cssvSafe = v => v;            // colors come straight from config
 const fmtN = v => (v>=1e3?(v/1e3).toFixed(1)+"K":(""+Math.round(v)));
 const fmtSAR = v => v>=1e6?("SAR "+(v/1e6).toFixed(1)+"M"): v>=1e3?("SAR "+(v/1e3).toFixed(1)+"K"):("SAR "+Math.round(v));
@@ -194,6 +216,12 @@ document.getElementById("t-footer").textContent=U.footer;
 document.getElementById("banner").textContent=U.bannerSample;
 document.getElementById("custSearch").placeholder=U.search.placeholder;
 document.getElementById("custSearchBtn").textContent=U.search.btn;
+document.getElementById("t-month").textContent=U.monthly.filterLabel;
+document.getElementById("t-trends").textContent=U.monthly.trendsTitle;
+document.getElementById("t-monthly-table").textContent=U.monthly.tableTitle;
+document.getElementById("snapshotNote").textContent=U.monthly.snapshotNote;
+document.getElementById("t-geo").textContent=U.geo.title;
+document.getElementById("t-geo-sub").textContent=U.geo.sub;
 document.getElementById("actHead").innerHTML=
   [["segment",U.actCols.segment],["count",U.actCols.count],["revenue",U.actCols.revenue],
    ["stage",U.actCols.stage],["play",U.actCols.play],["",U.actCols.channels],["",U.actCols.export]]
@@ -210,7 +238,7 @@ function renderTabs(){
     const b=document.createElement("button");
     b.className="tab"+(k===current?" active":"");
     b.textContent=C.STORES[k].label;
-    b.onclick=()=>{current=k;segFilterVal="";document.getElementById("custSearch").value="";document.getElementById("searchResult").innerHTML="";load();};
+    b.onclick=()=>{current=k;segFilterVal="";monthSel="";document.getElementById("custSearch").value="";document.getElementById("searchResult").innerHTML="";load();};
     el.appendChild(b);
   });
 }
@@ -228,7 +256,7 @@ async function load(){
     if(data.source==="error") throw new Error(data.error||"error");
   }catch(e){
     const custs=S.scoreStore(S.genSampleCustomers(current,C),C,current);
-    data=Object.assign({source:"offline",store:current,generatedAt:Date.now()},S.aggregate(custs,C,current));
+    data=Object.assign({source:"offline",store:current,generatedAt:Date.now()},S.aggregate(custs,C,current),S.genSampleSeries(current,C));
   }
   cache[current]=data;
   renderAll(data);
@@ -248,6 +276,20 @@ function renderStatus(d){
 
 function renderKPIs(d){
   const k=U.kpis, kd=U.kpiDesc, t=d.total||1;
+  // month view: order-based numbers for the selected month
+  if(monthSel && d.monthly){
+    const M=U.monthly, m=(d.monthly.find(x=>x.month===monthSel))||{revenue:0,orders:0,aov:0,newCustomers:0,buyers:0};
+    const mc=[
+      {l:k.revenue,v:fmtSAR(m.revenue),d:M.revLabel+" · "+monthSel},
+      {l:M.ordersLabel,v:fmtN(m.orders),d:monthSel},
+      {l:k.aov,v:fmtSAR(m.aov),d:fmtN(m.orders)+" "+kd.orders},
+      {l:M.newCustomers,v:fmtN(m.newCustomers),d:monthSel},
+      {l:M.buyers,v:fmtN(m.buyers),d:monthSel}
+    ];
+    document.getElementById("kpis").innerHTML=mc.map(c=>
+      `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num">${c.v}</span></div><div class="d">${c.d}</div></div>`).join("");
+    return;
+  }
   const cards=[
     {l:k.customers,v:fmtN(d.total),d:C.STORES[current].noteAr},
     {l:k.active,v:fmtN(d.active),d:Math.round(d.active/t*100)+kd.active},
@@ -340,10 +382,55 @@ function renderCustomers(d){
   </tr>`).join("");
 }
 
-function renderAll(d){
-  renderTabs(); renderStatus(d); renderKPIs(d); renderSegChart(d); renderRevChart(d);
-  renderFunnel(d); renderJourney(d); renderActivation(d); renderCustomers(d);
+/* ── monthly trend + geographic ───────────────────────────────────────────── */
+function buildMonthFilter(d){
+  const sel=document.getElementById("monthFilter");
+  const months=[...(d.monthly||[])].map(m=>m.month).reverse();
+  if(monthSel && !months.includes(monthSel)) monthSel="";   // month not in this store's data
+  sel.innerHTML=`<option value="">${U.monthly.allTime}</option>`+months.map(m=>`<option value="${m}">${m}</option>`).join("");
+  sel.value=monthSel;
 }
+function updateSnapshotNote(){ document.getElementById("snapshotNote").style.display=monthSel?"block":"none"; }
+function selectMonth(mk){ monthSel=mk; document.getElementById("monthFilter").value=mk; renderKPIs(cache[current]); updateSnapshotNote(); }
+function renderTrends(d){
+  const m=d.monthly||[];
+  if(trendChart)trendChart.destroy();
+  trendChart=new Chart(document.getElementById("trendChart"),{
+    data:{labels:m.map(x=>x.month),datasets:[
+      {type:"bar",label:U.monthly.revLabel,data:m.map(x=>x.revenue),backgroundColor:"#4f8cff",borderRadius:5,yAxisID:"y"},
+      {type:"line",label:U.monthly.ordersLabel,data:m.map(x=>x.orders),borderColor:"#34d399",backgroundColor:"#34d399",tension:.3,yAxisID:"y2"}
+    ]},
+    options:{animation:{duration:300},interaction:{mode:"index",intersect:false},
+      plugins:{legend:{labels:{color:"#9aa7b4",boxWidth:12}},
+        tooltip:{callbacks:{label:c=>c.dataset.yAxisID==="y"?` ${U.monthly.revLabel}: ${fmtSAR(c.raw)}`:` ${U.monthly.ordersLabel}: ${c.raw}`}}},
+      scales:{x:{ticks:{color:"#9aa7b4",font:{size:10}},grid:{display:false}},
+        y:{position:"right",ticks:{color:"#6b7785",callback:v=>fmtSAR(v)},grid:{color:"#2a323d"}},
+        y2:{position:"left",ticks:{color:"#6b7785"},grid:{display:false}}}}
+  });
+}
+function renderMonthlyTable(d){
+  const c=U.monthly.cols;
+  document.getElementById("monthlyHead").innerHTML=[c.month,c.sales,c.orders,c.aov,c.newCust,c.buyers].map(t=>`<th>${t}</th>`).join("");
+  const rows=[...(d.monthly||[])].reverse();
+  document.getElementById("monthlyBody").innerHTML=rows.map(m=>`<tr style="cursor:pointer" onclick="selectMonth('${m.month}')" title="${U.monthly.filterLabel}">
+    <td><b class="num">${m.month}</b></td><td><span class="num">${fmtSAR(m.revenue)}</span></td><td><span class="num">${m.orders}</span></td>
+    <td><span class="num">${fmtSAR(m.aov)}</span></td><td><span class="num">${m.newCustomers}</span></td><td><span class="num">${m.buyers}</span></td></tr>`).join("");
+}
+function renderGeo(d){
+  const c=U.geo.cols, g=d.geo||[];
+  document.getElementById("geoHead").innerHTML=[c.city,c.revenue,c.customers,c.orders].map(t=>`<th>${t}</th>`).join("");
+  document.getElementById("geoBody").innerHTML=g.map(x=>`<tr>
+    <td class="seg-name">${x.city||U.geo.unknown}</td><td><span class="num">${fmtSAR(x.revenue)}</span></td>
+    <td><span class="num">${x.customers}</span></td><td><span class="num">${x.orders}</span></td></tr>`).join("");
+}
+
+function renderAll(d){
+  renderTabs(); renderStatus(d); buildMonthFilter(d); updateSnapshotNote();
+  renderKPIs(d); renderTrends(d); renderMonthlyTable(d);
+  renderSegChart(d); renderRevChart(d); renderFunnel(d); renderJourney(d);
+  renderGeo(d); renderActivation(d); renderCustomers(d);
+}
+document.getElementById("monthFilter").onchange=e=>{monthSel=e.target.value;renderKPIs(cache[current]);updateSnapshotNote();};
 
 /* sorting + filter */
 document.getElementById("actTable").querySelector("thead").addEventListener("click",e=>{
