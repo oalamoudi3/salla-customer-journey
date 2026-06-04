@@ -1,0 +1,175 @@
+/* =============================================================================
+   CONFIG  —  EDIT EVERYTHING HERE
+   هذا هو الملف الوحيد الذي تحتاج لتعديله لضبط كل شيء.
+   -----------------------------------------------------------------------------
+   This single file controls:
+     1) STORES        → which stores, their Salla store IDs, and token env names
+     2) THRESHOLDS    → every segmentation cutoff (global + per-store overrides)
+     3) LOOKBACK/PULL → how far back to pull orders, page caps
+     4) FIELD_MAP     → where to read values inside a Salla order (verify once!)
+     5) EXCLUDED_STATUS_SLUGS → which order statuses to ignore
+     6) SEGMENTS      → colours, journey stage, recommended play, channels (Arabic)
+     7) JOURNEY       → the 6 stages (Arabic)
+     8) UI            → all on-screen Arabic text
+   Works in both the browser (window.CONFIG) and the serverless function (require).
+   ============================================================================= */
+(function (root, factory) {
+  if (typeof module !== "undefined" && module.exports) module.exports = factory();
+  else root.CONFIG = factory();
+})(typeof self !== "undefined" ? self : this, function () {
+  const CONFIG = {
+
+    /* 1) ───────── STORES ─────────────────────────────────────────────────────
+       id        : the Salla store id (numeric, as string)
+       tokenEnv  : the environment-variable name that holds this store's Salla
+                   ACCESS TOKEN on Vercel/Netlify. (Never hard-code tokens here.)
+       sample    : parameters used only when no token is set (demo mode).
+       thresholds: OPTIONAL per-store overrides of the global THRESHOLDS below. */
+    STORES: {
+      BUILD_STATION: {
+        id: "1327714595",
+        label: "BUILD_STATION",
+        noteAr: "تجزئة كبيرة · أكثر من 9000 منتج · فروع متعددة",
+        tokenEnv: "SALLA_TOKEN_BUILD_STATION",
+        sample: { seed: 11, n: 260, aov: [180, 1400], repeat: 0.46 }
+        // thresholds: { churnedAfterDays: 120 }   // example per-store override
+      },
+      LIGHTING: {
+        id: "604322063",                       // ← TODO: put the LIGHTING store id
+        label: "LIGHTING",
+        noteAr: "مشتريات تحتاج تفكيرًا · قيمة طلب أعلى",
+        tokenEnv: "SALLA_TOKEN_LIGHTING",
+        sample: { seed: 23, n: 140, aov: [140, 2600], repeat: 0.34 },
+        thresholds: { activeMaxDays: 90, atRiskMaxDays: 150, churnedAfterDays: 150, lapsingMinDays: 90 }
+        // ↑ LIGHTING repeats more slowly, so its "quiet" windows are wider.
+      },
+      HATCH: {
+        id: "1437000859",                       // ← TODO: put the HATCH store id
+        label: "HATCH",
+        noteAr: "طلبات متكررة منخفضة القيمة · ولاء قوي",
+        tokenEnv: "SALLA_TOKEN_HATCH",
+        sample: { seed: 37, n: 95, aov: [90, 520], repeat: 0.52 }
+      }
+    },
+
+    /* 2) ───────── THRESHOLDS (global defaults; override per store above) ──────
+       All in DAYS unless it's a percentage (0–1). */
+    THRESHOLDS: {
+      newTenureDays:    30,   // first order within this many days → lifecycle "New"
+      activeMaxDays:    60,   // last order ≤ this → status "Active"
+      atRiskMaxDays:    90,   // last order ≤ this (and > active) → "At-risk"; else "Churned"
+      lapsingMinDays:   60,   // recency ≥ this (and not churned) → lifecycle "Lapsing"
+      churnedAfterDays: 90,   // recency > this → lifecycle "Churned"
+      highValuePct:     0.20, // top 20% of spend → value tier "High"
+      midValuePct:      0.50  // next up to 50%  → "Mid"; remainder → "Low"
+    },
+
+    /* 3) ───────── PULL SETTINGS ───────────────────────────────────────────── */
+    PULL: {
+      lookbackDays: 365,  // only orders newer than this feed Recency/Frequency/Monetary
+      perPage:      100,  // Salla page size
+      maxPages:     250   // hard cap. The NIGHTLY BACKGROUND FUNCTION does the pull now
+                          // (15-min budget), so this can comfortably cover the biggest
+                          // store (HATCH ≈ 198 pages). The request-time endpoint no longer
+                          // pulls from Salla — it just reads the precomputed JSON from Blobs.
+    },
+
+    /* 4) ───────── FIELD_MAP — where to read each value inside a Salla order ───
+       VERIFY ONCE against your real payload:  /api/segments?store=BUILD_STATION&debug=1
+       returns one raw order so you can confirm these paths. The code also tries the
+       listed fallbacks automatically, so small differences usually just work. */
+    FIELD_MAP: {
+      customerId:       { path: "customer.id",            fallback: ["customer_id"] },
+      customerFirst:    { path: "customer.first_name",    fallback: ["customer.name"] },
+      customerLast:     { path: "customer.last_name",     fallback: [] },
+      createdAt:        { path: "date.date",              fallback: ["created_at", "date"] },
+      total:            { path: "amounts.total.amount",   fallback: ["total.amount", "total", "amounts.total"] },
+      statusSlug:       { path: "status.slug",            fallback: ["status.name"] }
+    },
+
+    /* 5) ───────── statuses to EXCLUDE from spend/frequency ───────────────────
+       NOTE: Salla uses the American spelling "canceled". */
+    EXCLUDED_STATUS_SLUGS: ["canceled", "refunded", "restoring", "restored"],
+
+    /* 6) ───────── SEGMENTS — colour · journey stage · play · channels ────────
+       stage must match a JOURNEY name below. channels ∈ {salla, ads, email}. */
+    SEGMENTS: {
+      "Champions":           { ar: "الأبطال",            color: "#34d399", stage: "Advocacy",     ar_play: "وصول مبكر VIP + طلب ترشيح؛ بناء جمهور مشابه عالي القيمة.", channels: ["salla","ads","email"] },
+      "Loyal":               { ar: "الأوفياء",           color: "#4f8cff", stage: "Retention",    ar_play: "عروض مكمّلة (Cross-sell) + نقاط ولاء؛ حمايتهم بمزايا.",     channels: ["salla","email"] },
+      "Potential Loyalists": { ar: "أوفياء محتملون",      color: "#22d3ee", stage: "Retention",    ar_play: "تحفيز الطلب الثاني/الثالث؛ حفظ وسيلة الدفع + اقتراح المنتج التالي.", channels: ["email","ads"] },
+      "New":                 { ar: "عملاء جدد",          color: "#a3e635", stage: "Onboarding",   ar_play: "سلسلة ترحيب + شرح الاستخدام (اليوم الثالث) لتقليل التسرّب المبكر.", channels: ["email"] },
+      "Needs Attention":     { ar: "يحتاجون اهتمامًا",    color: "#fbbf24", stage: "Retention",    ar_play: "عرض محدّد بوقت قبل تراجعهم؛ إبراز الأكثر مبيعًا.",          channels: ["email","ads"] },
+      "At-Risk":             { ar: "معرّضون للخطر",       color: "#fb923c", stage: "Retention",    ar_play: "خصم «اشتقنا لك» + استبيان رأي قصير.",                      channels: ["email","ads"] },
+      "Can't-Lose-Them":     { ar: "لا يمكن خسارتهم",     color: "#f472b6", stage: "Retention",    ar_play: "استعادة عالية اللمسة — كانوا عملاء قيّمين. حافز قوي.",      channels: ["email","ads","salla"] },
+      "Hibernating":         { ar: "خاملون",             color: "#a78bfa", stage: "Awareness",    ar_play: "إعادة تنشيط منخفضة التكلفة؛ إعادة تقديم العلامة + وصل حديثًا.", channels: ["ads","email"] },
+      "Lost":                { ar: "مفقودون",            color: "#f87171", stage: "Awareness",    ar_play: "إعادة تنشيط رخيصة أو استبعادهم من الاستقطاب لتوفير الإنفاق.",  channels: ["email"] }
+    },
+
+    /* 7) ───────── JOURNEY — the 6 stages (Arabic) ───────────────────────────── */
+    JOURNEY: [
+      { name: "Awareness",     ar: "الوعي",      sales: "جذب زيارات مؤهلة",        exp: "عرض قيمة واضح وملائم",                 mot: "ملاءمة الإعلان مع صفحة الوصول؛ أول 3 ثوانٍ" },
+      { name: "Consideration", ar: "المفاضلة",   sales: "تقليل التردد",            exp: "معالجة اعتراضات السعر / الثقة / الميزات", mot: "سرعة صفحة المنتج + ظهور التقييمات أعلى الصفحة" },
+      { name: "Purchase",      ar: "الشراء",     sales: "رفع متوسط الطلب والتحويل", exp: "إزالة الاحتكاك (ضيف، دفع بنقرة)",       mot: "عدد حقول الدفع ونسبة التخلّي" },
+      { name: "Onboarding",    ar: "التهيئة",    sales: "تقليل التسرّب المبكر",     exp: "احتفاء + تعليم الميزة الأساسية",        mot: "بريد شرح اليوم الثالث ← مرتجعات أقل" },
+      { name: "Retention",     ar: "الاحتفاظ",   sales: "زيادة الشراء المتكرر",     exp: "مفاجأة وإبهاج",                        mot: "Cross-sell في صفحة الشكر ← +10–30% بمتوسط الطلب" },
+      { name: "Advocacy",      ar: "المناصرة",   sales: "توليد الترشيحات",          exp: "تسهيل المشاركة ومكافأتها",             mot: "طلب الترشيح عند ذروة الرضا" }
+    ],
+
+    /* 8) ───────── UI — all on-screen Arabic text ─────────────────────────────
+       Change wording here without touching the dashboard code. */
+    UI: {
+      title: "تجزئة العملاء ورحلتهم",
+      subtitle: "شرائح RFM · دورة الحياة · مراحل الرحلة · تفعيل الحملات — عبر متاجر سلة",
+      live: "بيانات مباشرة", sample: "بيانات تجريبية", offline: "تجريبي (الواجهة الخلفية غير مفعّلة)",
+      updated: "آخر تحديث",
+      bannerSample: "أنت تشاهد بيانات تجريبية. اضبط مفاتيح الـ Tokens في إعدادات الاستضافة لعرض بيانات المتجر الحقيقية (انظر README).",
+      ordersScanned: "طلب تم فحصه",
+      kpis: {
+        customers: "العملاء", active: "النشطون", atrisk: "معرّضون للخطر", churned: "منسحبون",
+        repeat: "معدل الشراء المتكرر", aov: "متوسط قيمة الطلب", revenue: "الإيرادات", top20: "حصة أعلى 20%"
+      },
+      kpiDesc: {
+        active: "% من القاعدة", atrisk: "هدوء 61–90 يومًا", churned: "هدوء أكثر من 90 يومًا",
+        repeatBuyers: "مشترٍ متكرر", orders: "طلب", revenue: "إجمالي (في فترة المراجعة)", ofRevenue: "من الإيرادات"
+      },
+      segChartTitle: "العملاء حسب شريحة RFM",
+      revChartTitle: "مساهمة الإيرادات حسب الشريحة",
+      funnelTitle: "قمع دورة الحياة",
+      lifecycle: { New: "جدد", Core: "أساسيون", Lapsing: "متراجعون", Churned: "منسحبون" },
+      ofBase: "من القاعدة",
+      journeyTitle: "مراحل الرحلة ولحظات الحقيقة",
+      journeySub: "لكل مرحلة هدف مبيعات، هدف تجربة، اللحظة الفاصلة، والشرائح الموجودة فيها الآن",
+      labelSales: "المبيعات", labelExp: "التجربة", labelMot: "لحظة الحقيقة",
+      actTitle: "تفعيل الشرائح — الإجراءات المقترحة والقنوات",
+      actCols: { segment: "الشريحة", count: "العملاء", revenue: "الإيرادات", stage: "مرحلة الرحلة", play: "الإجراء المقترح", channels: "القنوات", export: "" },
+      exportBtn: "تصدير",
+      channels: { salla: "مجموعة سلة", ads: "Meta / TikTok / Snap", email: "البريد" },
+      custTitle: "العملاء", custMatches: "نتيجة مطابقة", custMatchesPl: "نتيجة مطابقة",
+      custCols: { id: "العميل", orders: "الطلبات", revenue: "الإيرادات", recency: "آخر طلب", segment: "الشريحة", tier: "القيمة" },
+      filterLabel: "تصفية حسب الشريحة", allSegments: "كل الشرائح",
+      showingTop: "عرض أعلى 100 حسب الإيرادات. تُحتسب درجات R/F/M من 1 إلى 5 ضمن كل متجر على حدة.",
+      daysAgo: "يومًا",
+      tiers: { High: "عالية", Mid: "متوسطة", Low: "منخفضة" },
+      exportToast: (n, seg, store, chans) => `محاكاة: سيتم دفع ${n} عميلًا من شريحة «${seg}» في ${store} ← ${chans}. الربط الفعلي في المرحلة الثانية.`,
+      search: {
+        placeholder: "ابحث برقم العميل أو الاسم…",
+        btn: "بحث",
+        clear: "كل العملاء ↺",
+        searching: "جارٍ البحث…",
+        noResult: "لا توجد نتائج مطابقة",
+        needRefresh: "لم يُبنَ فهرس البحث بعد — شغّل التحديث الليلي أولًا.",
+        matchesTitle: "نتائج مطابقة",
+        view: "عرض",
+        email: "البريد", mobile: "الجوال", city: "المدينة",
+        openInSalla: "فتح في لوحة سلة",
+        noContact: "تعذّر جلب بيانات التواصل (تحقق من التوكن)."
+      },
+      auth: {
+        prompt: "هذه اللوحة محمية. أدخل كلمة مرور الوصول للمتابعة:",
+        wrong: "كلمة المرور غير صحيحة. حاول مرة أخرى."
+      },
+      footer: "نسخة مباشرة · العتبات قابلة للتعديل من ملف config.js"
+    }
+  };
+  return CONFIG;
+});

@@ -1,0 +1,10 @@
+# Local Netlify folder
+.netlify
+
+# Node deps (restored via npm install)
+node_modules
+
+# Local secrets / scratch (never commit)
+.keys.local.txt
+.env
+.env.*

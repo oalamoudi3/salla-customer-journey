@@ -1,0 +1,10 @@
+{
+  "name": "salla-segments-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Arabic RFM segmentation + customer journey dashboard for Salla stores",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

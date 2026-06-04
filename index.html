@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تجزئة العملاء ورحلتهم — متاجر سلة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
+<script src="./config.js"></script>
+<script src="./lib/segmentation.js"></script>
+<style>
+:root{
+  --bg:#0f1216;--panel:#171c23;--panel-2:#1d242d;--line:#2a323d;
+  --txt:#e8edf3;--txt-2:#9aa7b4;--txt-3:#6b7785;--accent:#4f8cff;--accent-2:#7c5cff;
+  --good:#34d399;--warn:#fbbf24;--bad:#f87171;--radius:14px;--gap:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Tajawal',-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);line-height:1.5;padding:22px}
+.wrap{max-width:1280px;margin:0 auto}
+h1{font-size:22px;font-weight:800}
+h2{font-size:15px;font-weight:700;margin-bottom:14px}
+.sub{color:var(--txt-2);font-size:13px;margin-top:3px}
+header.top{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:14px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{background:var(--panel);border:1px solid var(--line);color:var(--txt-2);padding:9px 16px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;transition:.15s}
+.tab:hover{color:var(--txt);border-color:#3a4654}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.statusbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--txt-2);margin-bottom:14px}
+.pill{font-weight:700;padding:3px 11px;border-radius:20px;font-size:11.5px}
+.pill.live{background:rgba(52,211,153,.15);color:var(--good)}
+.pill.sample,.pill.offline{background:rgba(251,191,36,.14);color:var(--warn)}
+.pill.error{background:rgba(248,113,113,.15);color:var(--bad)}
+.banner{background:linear-gradient(90deg,rgba(124,92,255,.14),rgba(79,140,255,.07));border:1px solid var(--line);border-inline-start:3px solid var(--accent-2);
+  border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--txt-2);margin-bottom:16px;display:none}
+.banner.show{display:block}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--gap);margin-bottom:var(--gap)}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px}
+.kpi .l{font-size:11.5px;color:var(--txt-3);font-weight:700}
+.kpi .v{font-size:25px;font-weight:800;margin-top:6px}
+.kpi .d{font-size:11.5px;color:var(--txt-2);margin-top:3px}
+
+.grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:var(--gap);margin-bottom:var(--gap)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+canvas{max-height:300px}
+
+.funnel{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+.fn-row{display:flex;align-items:center;gap:12px}
+.fn-name{width:96px;font-size:13px;color:var(--txt-2);font-weight:700;flex-shrink:0}
+.fn-bar-wrap{flex:1;background:var(--panel-2);border-radius:7px;overflow:hidden;height:30px}
+.fn-bar{height:100%;border-radius:7px;display:flex;align-items:center;padding:0 10px;font-size:12px;font-weight:800;color:#0b0e12;min-width:42px;transition:width .5s}
+.fn-meta{font-size:11.5px;color:var(--txt-3);width:120px;text-align:start;flex-shrink:0}
+
+.journey{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:var(--gap)}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px;position:relative;overflow:hidden}
+.stage::before{content:"";position:absolute;top:0;inset-inline:0;height:3px;background:var(--accent)}
+.stage h4{font-size:14px;font-weight:800;margin-bottom:8px}
+.stage .row{font-size:11.5px;color:var(--txt-2);margin-bottom:7px}
+.stage .row b{color:var(--txt-3);display:block;font-size:10px;margin-bottom:1px}
+.stage .mot{font-size:11px;color:var(--warn);background:rgba(251,191,36,.08);border-radius:6px;padding:6px 7px;margin-top:6px}
+.stage .mot b{display:block;font-size:9.5px;color:var(--txt-3);margin-bottom:2px}
+.stage .segs{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.chip{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:20px;color:#0b0e12;white-space:nowrap}
+
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:start;padding:10px 11px;border-bottom:2px solid var(--line);color:var(--txt-3);font-size:11.5px;font-weight:700;white-space:nowrap;cursor:pointer;user-select:none}
+thead th:hover{color:var(--txt)}
+tbody td{padding:10px 11px;border-bottom:1px solid #20262e;vertical-align:middle}
+tbody tr:hover{background:var(--panel-2)}
+.seg-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-inline-end:7px;vertical-align:middle}
+.seg-name{font-weight:700}
+.ch{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;margin:1px 0 1px 4px;background:var(--panel-2);border:1px solid var(--line);color:var(--txt-2)}
+.btn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:6px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn:hover{filter:brightness(1.1)}
+.play{font-size:12px;color:var(--txt-2);max-width:300px}
+.tier{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:6px}
+.tier.High{background:rgba(52,211,153,.14);color:var(--good)}
+.tier.Mid{background:rgba(79,140,255,.14);color:var(--accent)}
+.tier.Low{background:rgba(155,167,180,.12);color:var(--txt-2)}
+.num{font-variant-numeric:tabular-nums;direction:ltr;display:inline-block}
+.rfm{font-weight:800;font-variant-numeric:tabular-nums}
+select,input.search{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
+input.search{width:220px;max-width:46vw}
+input.search:focus{outline:none;border-color:var(--accent)}
+.srch-result{margin-bottom:14px}
+.cust-card{background:var(--panel-2);border:1px solid var(--line);border-inline-start:3px solid var(--accent);border-radius:12px;padding:16px 18px}
+.cust-card .nm{font-size:17px;font-weight:800}
+.cust-card .meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:10px;font-size:12.5px;color:var(--txt-2)}
+.cust-card .meta b{color:var(--txt-3);font-weight:700;margin-inline-end:5px}
+.cust-card .contact{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 22px;font-size:12.5px}
+.cust-card a.salla{display:inline-block;margin-top:12px;background:var(--accent);color:#fff;text-decoration:none;border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:700}
+.cust-card a.salla:hover{filter:brightness(1.1)}
+.sec-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.sec-head h2{margin-bottom:0}
+footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
+#toast{position:fixed;bottom:24px;inset-inline-start:50%;transform:translateX(50%) translateY(20px);background:var(--panel-2);border:1px solid var(--line);
+  color:var(--txt);padding:12px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;box-shadow:0 10px 40px rgba(0,0,0,.5);max-width:90vw}
+#toast.show{opacity:1;transform:translateX(50%) translateY(0)}
+.spinner{text-align:center;color:var(--txt-2);padding:40px;font-size:14px}
+@media(max-width:920px){.grid2{grid-template-columns:1fr}.journey{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.journey{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div><h1 id="ttl"></h1><div class="sub" id="subttl"></div></div>
+    <div class="tabs" id="storeTabs"></div>
+  </header>
+
+  <div class="statusbar">
+    <span id="srcPill" class="pill sample">…</span>
+    <span id="srcMeta"></span>
+  </div>
+  <div class="banner" id="banner"></div>
+
+  <section class="kpis" id="kpis"><div class="spinner">جارٍ التحميل…</div></section>
+
+  <div class="grid2">
+    <div class="card"><h2 id="t-seg"></h2><canvas id="segChart"></canvas></div>
+    <div class="card"><h2 id="t-rev"></h2><canvas id="revChart"></canvas></div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <h2 id="t-funnel"></h2><div class="funnel" id="funnel"></div>
+  </div>
+
+  <div class="sec-head"><div><h2 id="t-journey"></h2><div class="sub" id="t-journey-sub"></div></div></div>
+  <div class="journey" id="journey"></div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <div class="sec-head"><h2 id="t-act"></h2></div>
+    <div class="tbl-wrap"><table id="actTable"><thead><tr id="actHead"></tr></thead><tbody id="actBody"></tbody></table></div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <div class="sec-head">
+      <h2 id="t-cust"></h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="custSearch" class="search" type="search">
+        <button class="btn" id="custSearchBtn"></button>
+        <label class="sub" id="t-filter" style="margin-inline-end:6px"></label><select id="segFilter"></select>
+      </div>
+    </div>
+    <div class="srch-result" id="searchResult"></div>
+    <div class="tbl-wrap"><table id="custTable"><thead><tr id="custHead"></tr></thead><tbody id="custBody"></tbody></table></div>
+    <div class="sub" id="t-showing" style="margin-top:10px"></div>
+  </div>
+
+  <footer id="t-footer"></footer>
+</div>
+<div id="toast"></div>
+
+<script>
+const C = window.CONFIG, U = C.UI, S = window.SEG;
+let current = Object.keys(C.STORES)[0];
+let cache = {};                     // storeKey → aggregate object
+let segFilterVal = "", custSort = {k:"revenue",dir:-1}, actSort = {k:"revenue",dir:-1};
+let segChart, revChart;
+const cssvSafe = v => v;            // colors come straight from config
+const fmtN = v => (v>=1e3?(v/1e3).toFixed(1)+"K":(""+Math.round(v)));
+const fmtSAR = v => v>=1e6?("SAR "+(v/1e6).toFixed(1)+"M"): v>=1e3?("SAR "+(v/1e3).toFixed(1)+"K"):("SAR "+Math.round(v));
+const segColor = s => (C.SEGMENTS[s]||{}).color || "#888";
+const segAr = s => (C.SEGMENTS[s]||{}).ar || s;
+
+/* access gate: ask once for the shared passphrase, keep it in localStorage, and send
+   it as x-dash-key on every API call. The server validates it (DASH_ACCESS_KEY) and
+   401s if wrong — this is just the UX side. */
+const DASH_KEY_LS="salla_dash_key";
+function getDashKey(){let k=localStorage.getItem(DASH_KEY_LS);if(!k){k=(window.prompt(U.auth.prompt)||"").trim();if(k)localStorage.setItem(DASH_KEY_LS,k);}return k;}
+async function apiFetch(url){
+  let r=await fetch(url,{headers:{Accept:"application/json","x-dash-key":getDashKey()}});
+  if(r.status===401){localStorage.removeItem(DASH_KEY_LS);window.alert(U.auth.wrong);
+    r=await fetch(url,{headers:{Accept:"application/json","x-dash-key":getDashKey()}});}
+  return r;
+}
+
+/* static text */
+document.getElementById("ttl").textContent=U.title;
+document.getElementById("subttl").textContent=U.subtitle;
+document.getElementById("t-seg").textContent=U.segChartTitle;
+document.getElementById("t-rev").textContent=U.revChartTitle;
+document.getElementById("t-funnel").textContent=U.funnelTitle;
+document.getElementById("t-journey").textContent=U.journeyTitle;
+document.getElementById("t-journey-sub").textContent=U.journeySub;
+document.getElementById("t-act").textContent=U.actTitle;
+document.getElementById("t-cust").textContent=U.custTitle;
+document.getElementById("t-filter").textContent=U.filterLabel;
+document.getElementById("t-showing").textContent=U.showingTop;
+document.getElementById("t-footer").textContent=U.footer;
+document.getElementById("banner").textContent=U.bannerSample;
+document.getElementById("custSearch").placeholder=U.search.placeholder;
+document.getElementById("custSearchBtn").textContent=U.search.btn;
+document.getElementById("actHead").innerHTML=
+  [["segment",U.actCols.segment],["count",U.actCols.count],["revenue",U.actCols.revenue],
+   ["stage",U.actCols.stage],["play",U.actCols.play],["",U.actCols.channels],["",U.actCols.export]]
+  .map(([k,t])=>`<th ${k?`data-k="${k}"`:""}>${t}</th>`).join("");
+document.getElementById("custHead").innerHTML=
+  [["id",U.custCols.id],["orders",U.custCols.orders],["revenue",U.custCols.revenue],["recency",U.custCols.recency],
+   ["R","R"],["F","F"],["M","M"],["segment",U.custCols.segment],["tier",U.custCols.tier]]
+  .map(([k,t])=>`<th data-k="${k}">${t}</th>`).join("");
+
+/* tabs */
+function renderTabs(){
+  const el=document.getElementById("storeTabs"); el.innerHTML="";
+  Object.keys(C.STORES).forEach(k=>{
+    const b=document.createElement("button");
+    b.className="tab"+(k===current?" active":"");
+    b.textContent=C.STORES[k].label;
+    b.onclick=()=>{current=k;segFilterVal="";document.getElementById("custSearch").value="";document.getElementById("searchResult").innerHTML="";load();};
+    el.appendChild(b);
+  });
+}
+
+/* data load: try backend, fall back to client-side sample */
+async function load(){
+  renderTabs();
+  if(cache[current]){ renderAll(cache[current]); return; }
+  document.getElementById("kpis").innerHTML='<div class="spinner">جارٍ التحميل…</div>';
+  let data;
+  try{
+    const r=await apiFetch(`./api/segments?store=${encodeURIComponent(current)}`);
+    if(!r.ok) throw new Error("http "+r.status);
+    data=await r.json();
+    if(data.source==="error") throw new Error(data.error||"error");
+  }catch(e){
+    const custs=S.scoreStore(S.genSampleCustomers(current,C),C,current);
+    data=Object.assign({source:"offline",store:current,generatedAt:Date.now()},S.aggregate(custs,C,current));
+  }
+  cache[current]=data;
+  renderAll(data);
+}
+
+function renderStatus(d){
+  const pill=document.getElementById("srcPill");
+  const map={live:["live",U.live],sample:["sample",U.sample],offline:["offline",U.offline]};
+  const [cls,txt]=map[d.source]||["sample",U.sample];
+  pill.className="pill "+cls; pill.textContent=txt;
+  const when=new Date(d.generatedAt||Date.now()).toLocaleString("ar-SA");
+  let meta=`${U.updated}: ${when}`;
+  if(d.source==="live") meta+=` · ${fmtN(d.ordersScanned||0)} ${U.ordersScanned}`+(d.capped?" · ⚠︎":"");
+  document.getElementById("srcMeta").textContent=meta;
+  document.getElementById("banner").classList.toggle("show", d.source!=="live");
+}
+
+function renderKPIs(d){
+  const k=U.kpis, kd=U.kpiDesc, t=d.total||1;
+  const cards=[
+    {l:k.customers,v:fmtN(d.total),d:C.STORES[current].noteAr},
+    {l:k.active,v:fmtN(d.active),d:Math.round(d.active/t*100)+kd.active},
+    {l:k.atrisk,v:fmtN(d.atrisk),d:kd.atrisk},
+    {l:k.churned,v:fmtN(d.churned),d:kd.churned},
+    {l:k.repeat,v:Math.round(d.repeat/t*100)+"%",d:fmtN(d.repeat)+" "+kd.repeatBuyers},
+    {l:k.aov,v:fmtSAR(d.aov),d:fmtN(d.orders)+" "+kd.orders},
+    {l:k.revenue,v:fmtSAR(d.revenue),d:kd.revenue},
+    {l:k.top20,v:Math.round((d.top20share||0)*100)+"%",d:kd.ofRevenue}
+  ];
+  document.getElementById("kpis").innerHTML=cards.map(c=>
+    `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num">${c.v}</span></div><div class="d">${c.d}</div></div>`).join("");
+}
+
+function renderSegChart(d){
+  const order=Object.keys(C.SEGMENTS).filter(s=>d.segments[s]);
+  if(segChart)segChart.destroy();
+  segChart=new Chart(document.getElementById("segChart"),{
+    type:"bar",
+    data:{labels:order.map(segAr),datasets:[{data:order.map(s=>d.segments[s].count),backgroundColor:order.map(segColor),borderRadius:6}]},
+    options:{plugins:{legend:{display:false}},animation:{duration:300},
+      scales:{x:{ticks:{color:"#9aa7b4",font:{size:10}},grid:{display:false}},
+              y:{ticks:{color:"#6b7785"},grid:{color:"#2a323d"}}}}
+  });
+}
+function renderRevChart(d){
+  const order=Object.keys(C.SEGMENTS).filter(s=>d.segments[s]);
+  if(revChart)revChart.destroy();
+  revChart=new Chart(document.getElementById("revChart"),{
+    type:"doughnut",
+    data:{labels:order.map(segAr),datasets:[{data:order.map(s=>d.segments[s].revenue),backgroundColor:order.map(segColor),borderColor:"#171c23",borderWidth:2}]},
+    options:{cutout:"58%",animation:{duration:300},
+      plugins:{legend:{position:"left",labels:{color:"#9aa7b4",font:{size:11},boxWidth:11,padding:7}},
+      tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtSAR(c.raw)}`}}}}
+  });
+}
+function renderFunnel(d){
+  const steps=[["New","#a3e635"],["Core","#4f8cff"],["Lapsing","#fb923c"],["Churned","#f87171"]];
+  const t=d.total||1, max=Math.max(...steps.map(s=>d.lifecycle[s[0]]||0),1);
+  document.getElementById("funnel").innerHTML=steps.map(([name,col])=>{
+    const v=d.lifecycle[name]||0, w=Math.max(6,v/max*100);
+    return `<div class="fn-row"><div class="fn-name">${U.lifecycle[name]}</div>
+      <div class="fn-bar-wrap"><div class="fn-bar" style="width:${w}%;background:${col}"><span class="num">${v}</span></div></div>
+      <div class="fn-meta"><span class="num">${Math.round(v/t*100)}%</span> ${U.ofBase}</div></div>`;
+  }).join("");
+}
+function renderJourney(d){
+  const bySeg={}; Object.keys(C.SEGMENTS).forEach(s=>{const st=C.SEGMENTS[s].stage;(bySeg[st]=bySeg[st]||[]).push(s);});
+  document.getElementById("journey").innerHTML=C.JOURNEY.map(j=>{
+    const segs=(bySeg[j.name]||[]).filter(s=>d.segments[s]);
+    const chips=segs.map(s=>`<span class="chip" style="background:${segColor(s)}">${segAr(s)} · ${d.segments[s].count}</span>`).join("");
+    return `<div class="stage"><h4>${j.ar}</h4>
+      <div class="row"><b>${U.labelSales}</b>${j.sales}</div>
+      <div class="row"><b>${U.labelExp}</b>${j.exp}</div>
+      <div class="mot"><b>${U.labelMot}</b>${j.mot}</div>
+      ${chips?`<div class="segs">${chips}</div>`:""}</div>`;
+  }).join("");
+}
+function renderActivation(d){
+  const rows=Object.keys(d.segments).map(s=>({segment:s,count:d.segments[s].count,revenue:d.segments[s].revenue,
+    stage:C.SEGMENTS[s].stage,play:C.SEGMENTS[s].ar_play,ch:C.SEGMENTS[s].channels}));
+  rows.sort((x,y)=>(x[actSort.k]>y[actSort.k]?1:-1)*actSort.dir);
+  const stageAr=n=>(C.JOURNEY.find(j=>j.name===n)||{}).ar||n;
+  document.getElementById("actBody").innerHTML=rows.map(r=>`<tr>
+    <td><span class="seg-dot" style="background:${segColor(r.segment)}"></span><span class="seg-name">${segAr(r.segment)}</span></td>
+    <td><span class="num">${r.count}</span></td>
+    <td><span class="num">${fmtSAR(r.revenue)}</span></td>
+    <td>${stageAr(r.stage)}</td>
+    <td class="play">${r.play}</td>
+    <td>${r.ch.map(c=>`<span class="ch">${U.channels[c]}</span>`).join("")}</td>
+    <td><button class="btn" onclick="exportSeg('${r.segment}',${r.count})">${U.exportBtn}</button></td>
+  </tr>`).join("");
+}
+function renderCustomers(d){
+  const sel=document.getElementById("segFilter");
+  if(!sel.dataset.built){ sel.innerHTML=`<option value="">${U.allSegments}</option>`+Object.keys(C.SEGMENTS).map(s=>`<option value="${s}">${segAr(s)}</option>`).join(""); sel.dataset.built="1"; }
+  sel.value=segFilterVal;
+  let rows=[...(d.customers||[])];
+  if(segFilterVal) rows=rows.filter(c=>c.segment===segFilterVal);
+  rows.sort((x,y)=>{const k=custSort.k==="recency"?"recencyDays":custSort.k;return (x[k]>y[k]?1:x[k]<y[k]?-1:0)*custSort.dir;});
+  document.getElementById("t-cust").textContent=`${U.custTitle} — ${rows.length} ${U.custMatches}`;
+  document.getElementById("custBody").innerHTML=rows.slice(0,100).map(c=>`<tr>
+    <td><div class="seg-name">${c.name}</div><div class="sub" style="font-size:11px"><span class="num">#${c.id}</span></div></td>
+    <td><span class="num">${c.orders}</span></td>
+    <td><span class="num">${fmtSAR(c.revenue)}</span></td>
+    <td>منذ <span class="num">${c.recencyDays}</span> ${U.daysAgo}</td>
+    <td class="rfm">${c.R}</td><td class="rfm">${c.F}</td><td class="rfm">${c.M}</td>
+    <td><span class="seg-dot" style="background:${segColor(c.segment)}"></span>${segAr(c.segment)}</td>
+    <td><span class="tier ${c.tier}">${U.tiers[c.tier]}</span></td>
+  </tr>`).join("");
+}
+
+function renderAll(d){
+  renderTabs(); renderStatus(d); renderKPIs(d); renderSegChart(d); renderRevChart(d);
+  renderFunnel(d); renderJourney(d); renderActivation(d); renderCustomers(d);
+}
+
+/* sorting + filter */
+document.getElementById("actTable").querySelector("thead").addEventListener("click",e=>{
+  const k=e.target.dataset.k; if(!k)return; actSort.dir=(actSort.k===k)?-actSort.dir:-1; actSort.k=k; renderActivation(cache[current]);
+});
+document.getElementById("custTable").querySelector("thead").addEventListener("click",e=>{
+  const k=e.target.dataset.k; if(!k)return; custSort.dir=(custSort.k===k)?-custSort.dir:-1; custSort.k=k; renderCustomers(cache[current]);
+});
+document.getElementById("segFilter").onchange=e=>{segFilterVal=e.target.value;renderCustomers(cache[current]);};
+
+/* export stub */
+function exportSeg(seg,count){
+  const chans=C.SEGMENTS[seg].channels.map(c=>U.channels[c]).join("، ");
+  toast(U.exportToast(count,segAr(seg),C.STORES[current].label,chans));
+}
+let tT;
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(tT);tT=setTimeout(()=>t.classList.remove("show"),4600);}
+
+/* customer search — id → full record + live Salla contact; text → matching list */
+const SR=document.getElementById("searchResult");
+async function doCustomerSearch(){
+  const v=document.getElementById("custSearch").value.trim();
+  if(!v){SR.innerHTML="";return;}
+  SR.innerHTML=`<div class="spinner">${U.search.searching}</div>`;
+  const qs=/^\d+$/.test(v)?`id=${encodeURIComponent(v)}`:`q=${encodeURIComponent(v)}`;
+  let d;
+  try{const r=await apiFetch(`./api/customer?store=${encodeURIComponent(current)}&${qs}`);d=await r.json();}
+  catch(e){SR.innerHTML=`<div class="cust-card">${U.search.noResult}</div>`;return;}
+  if(d.note){SR.innerHTML=`<div class="cust-card">${U.search.needRefresh}</div>`;return;}
+  if(d.customer){SR.innerHTML=customerCard(d.customer,d.contact);return;}
+  if(d.matches&&d.matches.length){SR.innerHTML=matchesList(d.matches);return;}
+  SR.innerHTML=`<div class="cust-card">${U.search.noResult}</div>`;
+}
+function customerCard(c,contact){
+  const s=U.search;
+  const contactHtml=contact?`<div class="contact">
+      ${contact.email?`<span><b>${s.email}</b><span class="num">${contact.email}</span></span>`:""}
+      ${contact.mobile?`<span><b>${s.mobile}</b><span class="num" style="direction:ltr">${contact.mobile}</span></span>`:""}
+      ${contact.city?`<span><b>${s.city}</b>${contact.city}</span>`:""}
+    </div>${contact.adminUrl?`<a class="salla" href="${contact.adminUrl}" target="_blank" rel="noopener">${s.openInSalla} ↗</a>`:""}`
+    :`<div class="contact">${s.noContact}</div>`;
+  return `<div class="cust-card">
+    <div class="nm">${c.name} <span class="sub num" style="font-size:12px">#${c.id}</span></div>
+    <div class="meta">
+      <span><b>${U.custCols.orders}</b><span class="num">${c.orders}</span></span>
+      <span><b>${U.custCols.revenue}</b><span class="num">${fmtSAR(c.revenue)}</span></span>
+      <span><b>${U.custCols.recency}</b>منذ <span class="num">${c.recencyDays}</span> ${U.daysAgo}</span>
+      <span><b>RFM</b><span class="rfm num">${c.R}${c.F}${c.M}</span></span>
+      <span><b>${U.custCols.segment}</b><span class="seg-dot" style="background:${segColor(c.segment)}"></span>${segAr(c.segment)}</span>
+      <span><b>${U.custCols.tier}</b><span class="tier ${c.tier}">${U.tiers[c.tier]}</span></span>
+    </div>${contactHtml}</div>`;
+}
+function matchesList(ms){
+  const s=U.search;
+  const rows=ms.map(c=>`<tr>
+    <td><span class="seg-name">${c.name}</span><div class="sub" style="font-size:11px"><span class="num">#${c.id}</span></div></td>
+    <td><span class="num">${c.orders}</span></td>
+    <td><span class="num">${fmtSAR(c.revenue)}</span></td>
+    <td><span class="seg-dot" style="background:${segColor(c.segment)}"></span>${segAr(c.segment)}</td>
+    <td><button class="btn" onclick="viewCustomer('${c.id}')">${s.view}</button></td>
+  </tr>`).join("");
+  return `<div class="cust-card" style="padding:8px 12px"><div class="sub" style="margin:6px 4px 10px">${s.matchesTitle} — <span class="num">${ms.length}</span></div>
+    <div class="tbl-wrap"><table><tbody>${rows}</tbody></table></div></div>`;
+}
+function viewCustomer(id){document.getElementById("custSearch").value=id;doCustomerSearch();}
+document.getElementById("custSearchBtn").onclick=doCustomerSearch;
+document.getElementById("custSearch").addEventListener("keydown",e=>{if(e.key==="Enter")doCustomerSearch();});
+document.getElementById("custSearch").addEventListener("search",doCustomerSearch);
+
+load();
+</script>
+</body>
+</html>

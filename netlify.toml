@@ -1,0 +1,13 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# make /api/segments hit the Netlify Function (same URL as Vercel)
+[[redirects]]
+  from = "/api/:fn"
+  to = "/.netlify/functions/:fn"
+  status = 200
+
+# nightly: trigger the background pull that refreshes the Blobs cache (02:00 UTC).
+[functions."refresh-scheduled"]
+  schedule = "0 2 * * *"
