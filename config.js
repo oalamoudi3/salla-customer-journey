@@ -112,12 +112,31 @@
       // name on ANY of a customer's orders marks them B2B; otherwise the AOV heuristic
       // (CUSTOMER_TYPE.b2bAovThreshold) decides. Leave generous fallbacks here.
       vatNumber:        { path: "ship_to.vat_number",     fallback: ["vat_number", "customer.vat_number", "tax_number", "ship_to.tax_number"] },
-      company:          { path: "ship_to.company",        fallback: ["company", "customer.company", "ship_to.company_name"] }
+      company:          { path: "ship_to.company",        fallback: ["company", "customer.company", "ship_to.company_name"] },
+      // is_pending_payment → an unpaid order awaiting payment (excluded from confirmed sales).
+      isPendingPayment: { path: "is_pending_payment",     fallback: [] },
+      // customer registration date → drives "new customers per period" (who joined when).
+      // Salla returns {date:"YYYY-MM-DD HH:mm:ss…",timezone…}; .date holds the timestamp.
+      customerCreatedAt:{ path: "customer.created_at.date", fallback: ["customer.created_at"] }
     },
 
-    /* 5) ───────── statuses to EXCLUDE from spend/frequency ───────────────────
-       NOTE: Salla uses the American spelling "canceled". */
-    EXCLUDED_STATUS_SLUGS: ["canceled", "refunded", "restoring", "restored"],
+    /* 5) ───────── ORDER STATUS HANDLING ──────────────────────────────────────
+       Slugs verified via GET /admin/v2/orders/statuses. Each order is classified
+       once (see lib/salla.js → classifyOrder):
+         RETURNED  → cancelled / returned: NOT counted as a sale, but COUNTED and
+                     shown separately (the "returned/cancelled orders" number).
+         PENDING   → awaiting payment: NOT a confirmed sale — excluded from revenue,
+                     AOV, RFM and the top-earner ranking. Also any order flagged
+                     is_pending_payment=true is treated as PENDING regardless of slug.
+         IGNORED   → not a sale at all (deleted order, quote request): excluded entirely.
+         CONFIRMED → everything else (under_review/in_progress/completed/delivering/
+                     delivered): counts toward all sales & customer metrics.
+       NOTE: Salla uses the American spelling "canceled"; "restored"=returned. */
+    RETURNED_STATUS_SLUGS: ["canceled", "restored", "restoring", "refunded"],
+    PENDING_STATUS_SLUGS:  ["payment_pending"],
+    IGNORED_STATUS_SLUGS:  ["deleted", "request_quote"],
+    // kept for backward-compatibility (older code paths) = returned ∪ pending ∪ ignored.
+    EXCLUDED_STATUS_SLUGS: ["canceled", "restored", "restoring", "refunded", "payment_pending", "deleted", "request_quote"],
 
     /* 6) ───────── SEGMENTS — colour · journey stage · play · channels ────────
        stage must match a JOURNEY name below. channels ∈ {salla, ads, email}. */
@@ -154,11 +173,13 @@
       ordersScanned: "طلب تم فحصه",
       kpis: {
         customers: "العملاء", active: "النشطون", atrisk: "معرّضون للخطر", churned: "منسحبون",
-        repeat: "معدل الشراء المتكرر", aov: "متوسط قيمة الطلب", revenue: "الإيرادات", top20: "حصة أعلى 20%"
+        repeat: "معدل الشراء المتكرر", aov: "متوسط قيمة الطلب", revenue: "الإيرادات", top20: "حصة أعلى 20%",
+        returned: "طلبات ملغاة/مرتجعة"
       },
       kpiDesc: {
         active: "% من القاعدة", atrisk: "هدوء 61–90 يومًا", churned: "هدوء أكثر من 90 يومًا",
-        repeatBuyers: "مشترٍ متكرر", orders: "طلب", revenue: "إجمالي (في فترة المراجعة)", ofRevenue: "من الإيرادات"
+        repeatBuyers: "مشترٍ متكرر", orders: "طلب", revenue: "إجمالي (في فترة المراجعة)", ofRevenue: "من الإيرادات",
+        returned: "غير محتسبة في المبيعات (مؤكدة فقط)"
       },
       segChartTitle: "العملاء حسب شريحة RFM",
       revChartTitle: "مساهمة الإيرادات حسب الشريحة",
@@ -210,9 +231,10 @@
         exportBtn: "تصدير CSV",
         exportTitle: "تنزيل تقرير الفترة كملف CSV",
         vsPrev: "مقارنة بالسابق",
-        cols: { period: "الفترة", month: "الشهر", sales: "المبيعات", orders: "الطلبات", aov: "متوسط الطلب", newCust: "عملاء جدد", buyers: "المشترون" },
+        returnedLabel: "طلبات ملغاة/مرتجعة",
+        cols: { period: "الفترة", month: "الشهر", sales: "المبيعات", orders: "الطلبات", aov: "متوسط الطلب", newCust: "عملاء جدد", buyers: "المشترون", returned: "ملغاة/مرتجعة" },
         geoForPeriod: "التوزيع الجغرافي للفترة",
-        snapshotNote: "ملاحظة: الشرائح ودورة الحياة ومراحل الرحلة تعكس الوضع الحالي ولا تتأثر بفلتر الفترة — أرقام الفترة (المبيعات/الطلبات/متوسط الطلب/العملاء) والتوزيع الجغرافي مبنية على طلبات تلك الفترة."
+        snapshotNote: "ملاحظة: الشرائح ودورة الحياة ومراحل الرحلة تعكس الوضع الحالي ولا تتأثر بفلتر الفترة. المبيعات/الطلبات/متوسط الطلب تحتسب الطلبات المؤكدة فقط (تُستثنى الملغاة/المرتجعة والطلبات بانتظار الدفع، وتُعرض الملغاة/المرتجعة كعدد منفصل). «عملاء جدد» = العملاء الذين سجّلوا حساباتهم في تلك الفترة."
       },
       /* Phase 2 — B2B / B2C cohort toggle. */
       customerType: { label: "نوع العميل", all: "الكل", b2b: "شركات (B2B)", b2c: "أفراد (B2C)" },

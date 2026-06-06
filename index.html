@@ -342,7 +342,8 @@ function renderKPIs(d,v){
       {l:M.ordersLabel,v:fmtN(m.orders),dl:deltaBadge(m.orders,p&&p.orders),d:periodSel},
       {l:k.aov,v:fmtSAR(m.aov),dl:deltaBadge(m.aov,p&&p.aov),d:fmtN(m.orders)+" "+kd.orders},
       {l:M.newCustomers,v:fmtN(m.newCustomers),dl:deltaBadge(m.newCustomers,p&&p.newCustomers),d:periodSel},
-      {l:M.buyers,v:fmtN(m.buyers),dl:deltaBadge(m.buyers,p&&p.buyers),d:periodSel}
+      {l:M.buyers,v:fmtN(m.buyers),dl:deltaBadge(m.buyers,p&&p.buyers),d:periodSel},
+      {l:k.returned,v:fmtN(m.returned||0),dl:deltaBadge(m.returned||0,p?(p.returned||0):null),d:kd.returned}
     ];
     document.getElementById("kpis").innerHTML=mc.map(c=>
       `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num">${c.v}</span></div><div class="d">${c.d}${p?" · "+M.vsPrev+" "+c.dl:""}</div></div>`).join("");
@@ -357,7 +358,8 @@ function renderKPIs(d,v){
     {l:k.repeat,v:Math.round(v.repeat/t*100)+"%",d:fmtN(v.repeat)+" "+kd.repeatBuyers},
     {l:k.aov,v:fmtSAR(v.aov),d:fmtN(v.orders)+" "+kd.orders},
     {l:k.revenue,v:fmtSAR(v.revenue),d:kd.revenue},
-    {l:k.top20,v:Math.round((v.top20share||0)*100)+"%",d:kd.ofRevenue}
+    {l:k.top20,v:Math.round((v.top20share||0)*100)+"%",d:kd.ofRevenue},
+    {l:k.returned,v:fmtN(v.returnedOrders||0),d:kd.returned}
   ];
   document.getElementById("kpis").innerHTML=cards.map(c=>
     `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num">${c.v}</span></div><div class="d">${c.d}</div></div>`).join("");
@@ -482,11 +484,11 @@ function renderTrends(d){
 }
 function renderPeriodTable(d){
   const c=U.monthly.cols;
-  document.getElementById("monthlyHead").innerHTML=[c.period,c.sales,c.orders,c.aov,c.newCust,c.buyers].map(t=>`<th>${t}</th>`).join("");
+  document.getElementById("monthlyHead").innerHTML=[c.period,c.sales,c.orders,c.aov,c.newCust,c.buyers,c.returned].map(t=>`<th>${t}</th>`).join("");
   const rows=[...curSeries(d)].reverse();
   document.getElementById("monthlyBody").innerHTML=rows.map(m=>`<tr class="${m.period===periodSel?'sel':''}" style="cursor:pointer" onclick="selectPeriod('${m.period===periodSel?'':m.period}')" title="${U.monthly.filterLabel}">
     <td><b class="num">${m.period}</b></td><td><span class="num">${fmtSAR(m.revenue)}</span></td><td><span class="num">${m.orders}</span></td>
-    <td><span class="num">${fmtSAR(m.aov)}</span></td><td><span class="num">${m.newCustomers}</span></td><td><span class="num">${m.buyers}</span></td></tr>`).join("");
+    <td><span class="num">${fmtSAR(m.aov)}</span></td><td><span class="num">${m.newCustomers}</span></td><td><span class="num">${m.buyers}</span></td><td><span class="num">${m.returned||0}</span></td></tr>`).join("");
 }
 function renderGeo(d){
   const c=U.geo.cols;
@@ -504,8 +506,8 @@ function csvCell(v){ v=(v==null?"":String(v)); return /[",\n\r]/.test(v)?'"'+v.r
 function exportReport(){
   const d=cache[current]; if(!d) return;
   const c=U.monthly.cols, series=curSeries(d);
-  const rows=[[c.period,c.sales,c.orders,c.aov,c.newCust,c.buyers]];
-  (periodSel?series.filter(s=>s.period===periodSel):series).forEach(s=>rows.push([s.period,s.revenue,s.orders,s.aov,s.newCustomers,s.buyers]));
+  const rows=[[c.period,c.sales,c.orders,c.aov,c.newCust,c.buyers,c.returned]];
+  (periodSel?series.filter(s=>s.period===periodSel):series).forEach(s=>rows.push([s.period,s.revenue,s.orders,s.aov,s.newCustomers,s.buyers,s.returned||0]));
   if(periodSel){
     const geo=curGeoMap(d)[periodSel]||[];
     if(geo.length){ rows.push([]); rows.push([U.geo.cols.city,U.geo.cols.revenue,U.geo.cols.customers,U.geo.cols.orders]);
