@@ -64,6 +64,20 @@
       midValuePct:      0.50  // next up to 50%  → "Mid"; remainder → "Low"
     },
 
+    /* 2b) ──────── B2B vs B2C (Phase 2) ───────────────────────────────────────
+       CUSTOMER_TYPE.b2bAovThreshold: when a customer has NO VAT/company signal,
+       an average order value at/above this (SAR) classifies them B2B.
+       THRESHOLDS_BY_TYPE: optional per-cohort overrides of the THRESHOLDS above
+       (merged last, so a cohort wins). Contractors (B2B) reorder on project cadence,
+       so their "quiet" windows are much wider than a consumer's. */
+    CUSTOMER_TYPE: {
+      b2bAovThreshold: 2000   // SAR; fallback signal when no VAT/company present
+    },
+    THRESHOLDS_BY_TYPE: {
+      B2B: { activeMaxDays: 120, atRiskMaxDays: 240, churnedAfterDays: 240, lapsingMinDays: 120, newTenureDays: 45 },
+      B2C: {}                 // consumers use the global defaults
+    },
+
     /* 3) ───────── PULL SETTINGS ───────────────────────────────────────────── */
     PULL: {
       lookbackDays: 365,  // only orders newer than this feed Recency/Frequency/Monetary
@@ -92,7 +106,13 @@
       // would mean one extra call per order. So we read customer.city here (present in
       // the list payload). ship_to.city is kept as the primary path in case Salla adds
       // it to the list later. VERIFY via ?debug=1.  value may be a string or {name}.
-      shipCity:         { path: "ship_to.city",           fallback: ["customer.city", "shipping.city", "ship_to.city.name"] }
+      shipCity:         { path: "ship_to.city",           fallback: ["customer.city", "shipping.city", "ship_to.city.name"] },
+      // B2B detection (Phase 2). UNCONFIRMED paths — verify against a real order via
+      // ?debug=1 and adjust. A valid VAT (15 digits, starts+ends with 3) OR any company
+      // name on ANY of a customer's orders marks them B2B; otherwise the AOV heuristic
+      // (CUSTOMER_TYPE.b2bAovThreshold) decides. Leave generous fallbacks here.
+      vatNumber:        { path: "ship_to.vat_number",     fallback: ["vat_number", "customer.vat_number", "tax_number", "ship_to.tax_number"] },
+      company:          { path: "ship_to.company",        fallback: ["company", "customer.company", "ship_to.company_name"] }
     },
 
     /* 5) ───────── statuses to EXCLUDE from spend/frequency ───────────────────
@@ -177,17 +197,25 @@
         wrong: "كلمة المرور غير صحيحة. حاول مرة أخرى."
       },
       monthly: {
-        filterLabel: "الشهر",
+        filterLabel: "الفترة",
+        granLabel: "التجميع",
+        gran: { month: "شهري", quarter: "ربعي", year: "سنوي" },
         allTime: "كل الفترة",
-        trendsTitle: "الاتجاهات الشهرية",
-        tableTitle: "التفصيل الشهري (للتقرير)",
+        trendsTitle: "الاتجاهات عبر الزمن",
+        tableTitle: "التفصيل حسب الفترة (للتقرير)",
         revLabel: "المبيعات",
         ordersLabel: "الطلبات",
         newCustomers: "عملاء جدد",
         buyers: "عملاء مشترون",
-        cols: { month: "الشهر", sales: "المبيعات", orders: "الطلبات", aov: "متوسط الطلب", newCust: "عملاء جدد", buyers: "المشترون" },
-        snapshotNote: "ملاحظة: الشرائح ودورة الحياة ومراحل الرحلة تعكس الوضع الحالي ولا تتأثر بفلتر الشهر — الأرقام الشهرية أعلاه مبنية على الطلبات."
+        exportBtn: "تصدير CSV",
+        exportTitle: "تنزيل تقرير الفترة كملف CSV",
+        vsPrev: "مقارنة بالسابق",
+        cols: { period: "الفترة", month: "الشهر", sales: "المبيعات", orders: "الطلبات", aov: "متوسط الطلب", newCust: "عملاء جدد", buyers: "المشترون" },
+        geoForPeriod: "التوزيع الجغرافي للفترة",
+        snapshotNote: "ملاحظة: الشرائح ودورة الحياة ومراحل الرحلة تعكس الوضع الحالي ولا تتأثر بفلتر الفترة — أرقام الفترة (المبيعات/الطلبات/متوسط الطلب/العملاء) والتوزيع الجغرافي مبنية على طلبات تلك الفترة."
       },
+      /* Phase 2 — B2B / B2C cohort toggle. */
+      customerType: { label: "نوع العميل", all: "الكل", b2b: "شركات (B2B)", b2c: "أفراد (B2C)" },
       geo: {
         title: "التوزيع الجغرافي — أعلى المدن",
         sub: "حسب مدينة العميل (الإيرادات وعدد العملاء)",

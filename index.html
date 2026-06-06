@@ -80,6 +80,12 @@ tbody tr:hover{background:var(--panel-2)}
 .tier.High{background:rgba(52,211,153,.14);color:var(--good)}
 .tier.Mid{background:rgba(79,140,255,.14);color:var(--accent)}
 .tier.Low{background:rgba(155,167,180,.12);color:var(--txt-2)}
+.delta{font-size:11px;font-weight:800;margin-inline-start:6px;border-radius:6px;padding:1px 6px;font-variant-numeric:tabular-nums;direction:ltr;display:inline-block}
+.delta.up{color:var(--good);background:rgba(52,211,153,.13)}
+.delta.down{color:var(--bad);background:rgba(248,113,113,.13)}
+.delta.flat{color:var(--txt-2);background:var(--panel-2)}
+.tab.sm{padding:6px 13px;font-size:12.5px}
+tbody tr.sel{background:rgba(124,92,255,.12)}
 .num{font-variant-numeric:tabular-nums;direction:ltr;display:inline-block}
 .rfm{font-weight:800;font-variant-numeric:tabular-nums}
 select,input.search{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
@@ -118,8 +124,16 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
   <div class="banner" id="banner"></div>
 
   <div class="statusbar" style="margin-top:-4px">
+    <span class="sub" id="t-ctype"></span>
+    <div class="tabs" id="ctypeTabs"></div>
+  </div>
+
+  <div class="statusbar" style="margin-top:-4px;gap:10px 14px">
+    <label class="sub" id="t-gran" for="granSelect"></label>
+    <select id="granSelect"></select>
     <label class="sub" id="t-month" for="monthFilter"></label>
     <select id="monthFilter"></select>
+    <button class="btn" id="exportBtn"></button>
     <span class="sub" id="monthHint"></span>
   </div>
   <div class="banner" id="snapshotNote" style="display:none"></div>
@@ -180,7 +194,9 @@ const C = window.CONFIG, U = C.UI, S = window.SEG;
 let current = Object.keys(C.STORES)[0];
 let cache = {};                     // storeKey → aggregate object
 let segFilterVal = "", custSort = {k:"revenue",dir:-1}, actSort = {k:"revenue",dir:-1};
-let monthSel = "";                  // "" = all time; else "YYYY-MM"
+let periodSel = "";                 // "" = all time; else a period key ("2025-06", "2025-Q2", "2025")
+let gran = "month";                 // trend/period granularity: month | quarter | year
+let typeSel = "";                   // "" = all customers; else "B2B" | "B2C"  (Phase 2 cohort)
 let segChart, revChart, trendChart;
 const cssvSafe = v => v;            // colors come straight from config
 const fmtN = v => (v>=1e3?(v/1e3).toFixed(1)+"K":(""+Math.round(v)));
@@ -217,9 +233,14 @@ document.getElementById("banner").textContent=U.bannerSample;
 document.getElementById("custSearch").placeholder=U.search.placeholder;
 document.getElementById("custSearchBtn").textContent=U.search.btn;
 document.getElementById("t-month").textContent=U.monthly.filterLabel;
+document.getElementById("t-gran").textContent=U.monthly.granLabel;
+document.getElementById("t-ctype").textContent=U.customerType.label;
 document.getElementById("t-trends").textContent=U.monthly.trendsTitle;
 document.getElementById("t-monthly-table").textContent=U.monthly.tableTitle;
 document.getElementById("snapshotNote").textContent=U.monthly.snapshotNote;
+{ const eb=document.getElementById("exportBtn"); eb.textContent=U.monthly.exportBtn; eb.title=U.monthly.exportTitle; eb.onclick=exportReport; }
+document.getElementById("granSelect").innerHTML=["month","quarter","year"].map(g=>`<option value="${g}">${U.monthly.gran[g]}</option>`).join("");
+document.getElementById("granSelect").value=gran;
 document.getElementById("t-geo").textContent=U.geo.title;
 document.getElementById("t-geo-sub").textContent=U.geo.sub;
 document.getElementById("actHead").innerHTML=
@@ -238,9 +259,30 @@ function renderTabs(){
     const b=document.createElement("button");
     b.className="tab"+(k===current?" active":"");
     b.textContent=C.STORES[k].label;
-    b.onclick=()=>{current=k;segFilterVal="";monthSel="";document.getElementById("custSearch").value="";document.getElementById("searchResult").innerHTML="";load();};
+    b.onclick=()=>{current=k;segFilterVal="";periodSel="";typeSel="";document.getElementById("custSearch").value="";document.getElementById("searchResult").innerHTML="";load();};
     el.appendChild(b);
   });
+}
+
+/* Phase 2: B2B / B2C / All cohort toggle (next to the store tabs). Switching re-renders
+   every snapshot panel against that cohort's own quintile-scored aggregate. */
+function renderCohortTabs(){
+  const el=document.getElementById("ctypeTabs"); el.innerHTML="";
+  [["",U.customerType.all],["B2B",U.customerType.b2b],["B2C",U.customerType.b2c]].forEach(([k,label])=>{
+    const b=document.createElement("button");
+    b.className="tab sm"+(k===typeSel?" active":"");
+    b.textContent=label;
+    b.onclick=()=>{ if(typeSel===k) return; typeSel=k; renderAll(cache[current]); };
+    el.appendChild(b);
+  });
+}
+
+/* the dataset the snapshot panels render: the selected cohort's aggregate when a cohort
+   is active, else the combined aggregate. Period/geo/source fields stay from combined d. */
+function viewData(){
+  const d=cache[current]; if(!d) return d;
+  if(typeSel && d.byType && d.byType[typeSel]) return Object.assign({},d,d.byType[typeSel]);
+  return d;
 }
 
 /* data load: try backend, fall back to client-side sample */
@@ -255,8 +297,12 @@ async function load(){
     data=await r.json();
     if(data.source==="error") throw new Error(data.error||"error");
   }catch(e){
-    const custs=S.scoreStore(S.genSampleCustomers(current,C),C,current);
-    data=Object.assign({source:"offline",store:current,generatedAt:Date.now()},S.aggregate(custs,C,current),S.genSampleSeries(current,C));
+    // offline demo: mirror the server's cohort split so the B2B/B2C toggle still works.
+    const raw=S.genSampleCustomers(current,C); raw.forEach(c=>c.customerType=S.customerTypeOf(c,C));
+    const combined=S.scoreStore(raw.map(c=>({...c})),C,current,null);
+    const byType={};
+    ["B2B","B2C"].forEach(ct=>{ byType[ct]=S.aggregate(S.scoreStore(raw.filter(c=>c.customerType===ct).map(c=>({...c})),C,current,ct),C,current); });
+    data=Object.assign({source:"offline",store:current,generatedAt:Date.now()},S.aggregate(combined,C,current),{byType},S.genSampleSeries(current,C));
   }
   cache[current]=data;
   renderAll(data);
@@ -274,31 +320,44 @@ function renderStatus(d){
   document.getElementById("banner").classList.toggle("show", d.source!=="live");
 }
 
-function renderKPIs(d){
-  const k=U.kpis, kd=U.kpiDesc, t=d.total||1;
-  // month view: order-based numbers for the selected month
-  if(monthSel && d.monthly){
-    const M=U.monthly, m=(d.monthly.find(x=>x.month===monthSel))||{revenue:0,orders:0,aov:0,newCustomers:0,buyers:0};
+/* ▲/▼ badge vs the previous period (null prev → no badge) */
+function deltaBadge(cur,prev){
+  if(prev==null) return "";
+  if(prev===0) return cur>0?`<span class="delta up">▲</span>`:`<span class="delta flat">—</span>`;
+  const pct=Math.round((cur-prev)/Math.abs(prev)*100);
+  if(pct===0) return `<span class="delta flat">0%</span>`;
+  return `<span class="delta ${pct>0?'up':'down'}">${pct>0?'▲':'▼'} ${Math.abs(pct)}%</span>`;
+}
+/* d = combined data (period numbers); v = cohort view data (all-time snapshot KPIs) */
+function renderKPIs(d,v){
+  const k=U.kpis, kd=U.kpiDesc, M=U.monthly;
+  // period view: order-based numbers for the selected period, with vs-previous deltas.
+  // (Period numbers are not split by cohort — they reflect all customer types.)
+  if(periodSel){
+    const series=curSeries(d), idx=series.findIndex(x=>x.period===periodSel);
+    const m=series[idx]||{revenue:0,orders:0,aov:0,newCustomers:0,buyers:0};
+    const p=idx>0?series[idx-1]:null;
     const mc=[
-      {l:k.revenue,v:fmtSAR(m.revenue),d:M.revLabel+" · "+monthSel},
-      {l:M.ordersLabel,v:fmtN(m.orders),d:monthSel},
-      {l:k.aov,v:fmtSAR(m.aov),d:fmtN(m.orders)+" "+kd.orders},
-      {l:M.newCustomers,v:fmtN(m.newCustomers),d:monthSel},
-      {l:M.buyers,v:fmtN(m.buyers),d:monthSel}
+      {l:k.revenue,v:fmtSAR(m.revenue),dl:deltaBadge(m.revenue,p&&p.revenue),d:M.revLabel+" · "+periodSel},
+      {l:M.ordersLabel,v:fmtN(m.orders),dl:deltaBadge(m.orders,p&&p.orders),d:periodSel},
+      {l:k.aov,v:fmtSAR(m.aov),dl:deltaBadge(m.aov,p&&p.aov),d:fmtN(m.orders)+" "+kd.orders},
+      {l:M.newCustomers,v:fmtN(m.newCustomers),dl:deltaBadge(m.newCustomers,p&&p.newCustomers),d:periodSel},
+      {l:M.buyers,v:fmtN(m.buyers),dl:deltaBadge(m.buyers,p&&p.buyers),d:periodSel}
     ];
     document.getElementById("kpis").innerHTML=mc.map(c=>
-      `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num">${c.v}</span></div><div class="d">${c.d}</div></div>`).join("");
+      `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num">${c.v}</span></div><div class="d">${c.d}${p?" · "+M.vsPrev+" "+c.dl:""}</div></div>`).join("");
     return;
   }
+  const t=v.total||1;
   const cards=[
-    {l:k.customers,v:fmtN(d.total),d:C.STORES[current].noteAr},
-    {l:k.active,v:fmtN(d.active),d:Math.round(d.active/t*100)+kd.active},
-    {l:k.atrisk,v:fmtN(d.atrisk),d:kd.atrisk},
-    {l:k.churned,v:fmtN(d.churned),d:kd.churned},
-    {l:k.repeat,v:Math.round(d.repeat/t*100)+"%",d:fmtN(d.repeat)+" "+kd.repeatBuyers},
-    {l:k.aov,v:fmtSAR(d.aov),d:fmtN(d.orders)+" "+kd.orders},
-    {l:k.revenue,v:fmtSAR(d.revenue),d:kd.revenue},
-    {l:k.top20,v:Math.round((d.top20share||0)*100)+"%",d:kd.ofRevenue}
+    {l:k.customers,v:fmtN(v.total),d:C.STORES[current].noteAr},
+    {l:k.active,v:fmtN(v.active),d:Math.round(v.active/t*100)+kd.active},
+    {l:k.atrisk,v:fmtN(v.atrisk),d:kd.atrisk},
+    {l:k.churned,v:fmtN(v.churned),d:kd.churned},
+    {l:k.repeat,v:Math.round(v.repeat/t*100)+"%",d:fmtN(v.repeat)+" "+kd.repeatBuyers},
+    {l:k.aov,v:fmtSAR(v.aov),d:fmtN(v.orders)+" "+kd.orders},
+    {l:k.revenue,v:fmtSAR(v.revenue),d:kd.revenue},
+    {l:k.top20,v:Math.round((v.top20share||0)*100)+"%",d:kd.ofRevenue}
   ];
   document.getElementById("kpis").innerHTML=cards.map(c=>
     `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num">${c.v}</span></div><div class="d">${c.d}</div></div>`).join("");
@@ -382,25 +441,38 @@ function renderCustomers(d){
   </tr>`).join("");
 }
 
-/* ── monthly trend + geographic ───────────────────────────────────────────── */
-function buildMonthFilter(d){
-  const sel=document.getElementById("monthFilter");
-  const months=[...(d.monthly||[])].map(m=>m.month).reverse();
-  if(monthSel && !months.includes(monthSel)) monthSel="";   // month not in this store's data
-  sel.innerHTML=`<option value="">${U.monthly.allTime}</option>`+months.map(m=>`<option value="${m}">${m}</option>`).join("");
-  sel.value=monthSel;
+/* ── period trend (month/quarter/year) + geographic ───────────────────────── */
+// current-granularity series; falls back to `monthly` for any older cached blob.
+function curSeries(d){
+  const p=d.periods&&d.periods[gran];
+  if(p&&p.series) return p.series;
+  return gran==="month" ? (d.monthly||[]).map(m=>({period:m.month,revenue:m.revenue,orders:m.orders,aov:m.aov,buyers:m.buyers,newCustomers:m.newCustomers})) : [];
 }
-function updateSnapshotNote(){ document.getElementById("snapshotNote").style.display=monthSel?"block":"none"; }
-function selectMonth(mk){ monthSel=mk; document.getElementById("monthFilter").value=mk; renderKPIs(cache[current]); updateSnapshotNote(); }
+function curGeoMap(d){ const p=d.periods&&d.periods[gran]; return (p&&p.geo)||{}; }
+
+function buildPeriodFilter(d){
+  const sel=document.getElementById("monthFilter");
+  const periods=curSeries(d).map(m=>m.period).reverse();          // newest first
+  if(periodSel && !periods.includes(periodSel)) periodSel="";     // not in this series
+  sel.innerHTML=`<option value="">${U.monthly.allTime}</option>`+periods.map(m=>`<option value="${m}">${m}</option>`).join("");
+  sel.value=periodSel;
+}
+function updateSnapshotNote(){ document.getElementById("snapshotNote").style.display=periodSel?"block":"none"; }
+// re-render only the period-driven panels (KPIs, trend highlight, table, geo)
+function refreshPeriodPanels(){ const d=cache[current]; document.getElementById("monthFilter").value=periodSel;
+  renderKPIs(d,viewData()); renderTrends(d); renderPeriodTable(d); renderGeo(d); updateSnapshotNote(); }
+function selectPeriod(pk){ periodSel=pk; refreshPeriodPanels(); }
 function renderTrends(d){
-  const m=d.monthly||[];
+  const m=curSeries(d);
   if(trendChart)trendChart.destroy();
+  const barCol=m.map(x=>x.period===periodSel?"#7c5cff":"#4f8cff");   // highlight selected period
   trendChart=new Chart(document.getElementById("trendChart"),{
-    data:{labels:m.map(x=>x.month),datasets:[
-      {type:"bar",label:U.monthly.revLabel,data:m.map(x=>x.revenue),backgroundColor:"#4f8cff",borderRadius:5,yAxisID:"y"},
+    data:{labels:m.map(x=>x.period),datasets:[
+      {type:"bar",label:U.monthly.revLabel,data:m.map(x=>x.revenue),backgroundColor:barCol,borderRadius:5,yAxisID:"y"},
       {type:"line",label:U.monthly.ordersLabel,data:m.map(x=>x.orders),borderColor:"#34d399",backgroundColor:"#34d399",tension:.3,yAxisID:"y2"}
     ]},
     options:{animation:{duration:300},interaction:{mode:"index",intersect:false},
+      onClick:(e,els)=>{ if(els&&els.length){ const pk=m[els[0].index].period; selectPeriod(periodSel===pk?"":pk); } },
       plugins:{legend:{labels:{color:"#9aa7b4",boxWidth:12}},
         tooltip:{callbacks:{label:c=>c.dataset.yAxisID==="y"?` ${U.monthly.revLabel}: ${fmtSAR(c.raw)}`:` ${U.monthly.ordersLabel}: ${c.raw}`}}},
       scales:{x:{ticks:{color:"#9aa7b4",font:{size:10}},grid:{display:false}},
@@ -408,38 +480,62 @@ function renderTrends(d){
         y2:{position:"left",ticks:{color:"#6b7785"},grid:{display:false}}}}
   });
 }
-function renderMonthlyTable(d){
+function renderPeriodTable(d){
   const c=U.monthly.cols;
-  document.getElementById("monthlyHead").innerHTML=[c.month,c.sales,c.orders,c.aov,c.newCust,c.buyers].map(t=>`<th>${t}</th>`).join("");
-  const rows=[...(d.monthly||[])].reverse();
-  document.getElementById("monthlyBody").innerHTML=rows.map(m=>`<tr style="cursor:pointer" onclick="selectMonth('${m.month}')" title="${U.monthly.filterLabel}">
-    <td><b class="num">${m.month}</b></td><td><span class="num">${fmtSAR(m.revenue)}</span></td><td><span class="num">${m.orders}</span></td>
+  document.getElementById("monthlyHead").innerHTML=[c.period,c.sales,c.orders,c.aov,c.newCust,c.buyers].map(t=>`<th>${t}</th>`).join("");
+  const rows=[...curSeries(d)].reverse();
+  document.getElementById("monthlyBody").innerHTML=rows.map(m=>`<tr class="${m.period===periodSel?'sel':''}" style="cursor:pointer" onclick="selectPeriod('${m.period===periodSel?'':m.period}')" title="${U.monthly.filterLabel}">
+    <td><b class="num">${m.period}</b></td><td><span class="num">${fmtSAR(m.revenue)}</span></td><td><span class="num">${m.orders}</span></td>
     <td><span class="num">${fmtSAR(m.aov)}</span></td><td><span class="num">${m.newCustomers}</span></td><td><span class="num">${m.buyers}</span></td></tr>`).join("");
 }
 function renderGeo(d){
-  const c=U.geo.cols, g=d.geo||[];
+  const c=U.geo.cols;
+  const g = periodSel ? (curGeoMap(d)[periodSel]||[]) : (d.geo||[]);
+  document.getElementById("t-geo-sub").textContent = periodSel ? (U.monthly.geoForPeriod+" · "+periodSel) : U.geo.sub;
   document.getElementById("geoHead").innerHTML=[c.city,c.revenue,c.customers,c.orders].map(t=>`<th>${t}</th>`).join("");
   document.getElementById("geoBody").innerHTML=g.map(x=>`<tr>
     <td class="seg-name">${x.city||U.geo.unknown}</td><td><span class="num">${fmtSAR(x.revenue)}</span></td>
     <td><span class="num">${x.customers}</span></td><td><span class="num">${x.orders}</span></td></tr>`).join("");
 }
 
-function renderAll(d){
-  renderTabs(); renderStatus(d); buildMonthFilter(d); updateSnapshotNote();
-  renderKPIs(d); renderTrends(d); renderMonthlyTable(d);
-  renderSegChart(d); renderRevChart(d); renderFunnel(d); renderJourney(d);
-  renderGeo(d); renderActivation(d); renderCustomers(d);
+/* CSV export — a selected period exports that period's metrics + its city breakdown;
+   otherwise the whole current-granularity series. UTF-8 BOM so Excel reads Arabic. */
+function csvCell(v){ v=(v==null?"":String(v)); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function exportReport(){
+  const d=cache[current]; if(!d) return;
+  const c=U.monthly.cols, series=curSeries(d);
+  const rows=[[c.period,c.sales,c.orders,c.aov,c.newCust,c.buyers]];
+  (periodSel?series.filter(s=>s.period===periodSel):series).forEach(s=>rows.push([s.period,s.revenue,s.orders,s.aov,s.newCustomers,s.buyers]));
+  if(periodSel){
+    const geo=curGeoMap(d)[periodSel]||[];
+    if(geo.length){ rows.push([]); rows.push([U.geo.cols.city,U.geo.cols.revenue,U.geo.cols.customers,U.geo.cols.orders]);
+      geo.forEach(x=>rows.push([x.city||U.geo.unknown,x.revenue,x.customers,x.orders])); }
+  }
+  const csv="﻿"+rows.map(r=>r.map(csvCell).join(",")).join("\r\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download=`${current}_${gran}_${periodSel||"all"}.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
-document.getElementById("monthFilter").onchange=e=>{monthSel=e.target.value;renderKPIs(cache[current]);updateSnapshotNote();};
+
+function renderAll(d){
+  const v=viewData();                            // cohort aggregate for the snapshot panels
+  renderTabs(); renderCohortTabs(); renderStatus(d); buildPeriodFilter(d); updateSnapshotNote();
+  renderKPIs(d,v); renderTrends(d); renderPeriodTable(d);
+  renderSegChart(v); renderRevChart(v); renderFunnel(v); renderJourney(v);
+  renderGeo(d); renderActivation(v); renderCustomers(v);
+}
+document.getElementById("monthFilter").onchange=e=>{periodSel=e.target.value;refreshPeriodPanels();};
+document.getElementById("granSelect").onchange=e=>{gran=e.target.value;periodSel="";buildPeriodFilter(cache[current]);refreshPeriodPanels();};
 
 /* sorting + filter */
 document.getElementById("actTable").querySelector("thead").addEventListener("click",e=>{
-  const k=e.target.dataset.k; if(!k)return; actSort.dir=(actSort.k===k)?-actSort.dir:-1; actSort.k=k; renderActivation(cache[current]);
+  const k=e.target.dataset.k; if(!k)return; actSort.dir=(actSort.k===k)?-actSort.dir:-1; actSort.k=k; renderActivation(viewData());
 });
 document.getElementById("custTable").querySelector("thead").addEventListener("click",e=>{
-  const k=e.target.dataset.k; if(!k)return; custSort.dir=(custSort.k===k)?-custSort.dir:-1; custSort.k=k; renderCustomers(cache[current]);
+  const k=e.target.dataset.k; if(!k)return; custSort.dir=(custSort.k===k)?-custSort.dir:-1; custSort.k=k; renderCustomers(viewData());
 });
-document.getElementById("segFilter").onchange=e=>{segFilterVal=e.target.value;renderCustomers(cache[current]);};
+document.getElementById("segFilter").onchange=e=>{segFilterVal=e.target.value;renderCustomers(viewData());};
 
 /* export stub */
 function exportSeg(seg,count){

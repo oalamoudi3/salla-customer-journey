@@ -37,7 +37,7 @@ async function refreshStore(blobs, blobsAuth, storeKey) {
       generatedAt: data.generatedAt,
       customers: all.map(c => ({
         id: c.id, name: c.name, orders: c.orders, revenue: c.revenue, recencyDays: c.recencyDays,
-        R: c.R, F: c.F, M: c.M, segment: c.segment, tier: c.tier
+        R: c.R, F: c.F, M: c.M, segment: c.segment, tier: c.tier, customerType: c.customerType
       }))
     });
     return { storeKey, ok: true, source: data.source, ordersScanned: data.ordersScanned, total: data.total };
