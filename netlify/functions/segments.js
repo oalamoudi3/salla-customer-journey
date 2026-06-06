@@ -44,12 +44,15 @@ exports.handler = async (event) => {
     const blobs = openStore(getStore, BLOB_STORE);
     const precomputed = await blobs.get(storeKey, { type: "json" });
     if (precomputed) {
-      return json(200, precomputed, { "Cache-Control": "s-maxage=900, stale-while-revalidate=3600" });
+      // NO CDN caching: the x-dash-key gate runs in this function, but the CDN cache key
+      // does NOT include that header — an s-maxage cache would let anyone replay the same
+      // URL and get the authenticated 200 without the key. Keep responses private/no-store.
+      return json(200, precomputed, { "Cache-Control": "private, no-store" });
     }
 
     // not refreshed yet → sample, so the dashboard still renders (with the banner).
     const sample = await buildSegments({ storeKey, token: "", cfg: CONFIG });
-    return json(200, sample, { "Cache-Control": "s-maxage=60" });
+    return json(200, sample, { "Cache-Control": "private, no-store" });
   } catch (e) {
     const code = e.code === 401 ? 401 : 500;
     return json(code, {
