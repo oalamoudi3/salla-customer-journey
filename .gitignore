@@ -8,3 +8,6 @@ node_modules
 .keys.local.txt
 .env
 .env.*
+
+# Clean publish staging dir used for manual CLI deploys (never commit/publish)
+.deploy-public/
