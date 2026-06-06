@@ -54,8 +54,8 @@ No other file needs editing for normal tuning.
 
 #### Access & secrets (set in Netlify → Environment variables)
 - `DASH_ACCESS_KEY` — **the dashboard passphrase** viewers must enter (sent as the
-  `x-dash-key` header; every `/api/*` function 401s without it). Current value: `REDACTED`.
-  Change it here anytime — viewers are simply re-prompted on the next load.
+  `x-dash-key` header; every `/api/*` function 401s without it). Set/rotate its value only
+  in Netlify (never commit it) — viewers are simply re-prompted on the next load.
 - `REFRESH_KEY` — protects the refresh endpoints (`x-refresh-key`); set any long random string.
 - OAuth (Phase 1 auto-refresh): per store `SALLA_REFRESH_TOKEN_<STORE>` plus
   `SALLA_CLIENT_ID(_<STORE>)` / `SALLA_CLIENT_SECRET(_<STORE>)`; `SALLA_TOKEN_<STORE>` seeds
