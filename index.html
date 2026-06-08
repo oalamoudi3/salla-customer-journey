@@ -201,6 +201,11 @@ let segChart, revChart, trendChart;
 const cssvSafe = v => v;            // colors come straight from config
 const fmtN = v => (v>=1e3?(v/1e3).toFixed(1)+"K":(""+Math.round(v)));
 const fmtSAR = v => v>=1e6?("SAR "+(v/1e6).toFixed(1)+"M"): v>=1e3?("SAR "+(v/1e3).toFixed(1)+"K"):("SAR "+Math.round(v));
+/* hover shows the full number (e.g. 11.3K → 11,319). grp = grouped full integer;
+   tN/tSAR wrap an abbreviated value in a .num span carrying the full value as title. */
+const grp = v => (Math.round(Number(v)||0)).toLocaleString("en-US");
+const tN = v => `<span class="num" title="${grp(v)}">${fmtN(v)}</span>`;
+const tSAR = v => `<span class="num" title="${grp(v)} ﷼">${fmtSAR(v)}</span>`;
 const segColor = s => (C.SEGMENTS[s]||{}).color || "#888";
 const segAr = s => (C.SEGMENTS[s]||{}).ar || s;
 
@@ -338,31 +343,31 @@ function renderKPIs(d,v){
     const m=series[idx]||{revenue:0,orders:0,aov:0,newCustomers:0,buyers:0};
     const p=idx>0?series[idx-1]:null;
     const mc=[
-      {l:k.revenue,v:fmtSAR(m.revenue),dl:deltaBadge(m.revenue,p&&p.revenue),d:M.revLabel+" · "+periodSel},
-      {l:M.ordersLabel,v:fmtN(m.orders),dl:deltaBadge(m.orders,p&&p.orders),d:periodSel},
-      {l:k.aov,v:fmtSAR(m.aov),dl:deltaBadge(m.aov,p&&p.aov),d:fmtN(m.orders)+" "+kd.orders},
-      {l:M.newCustomers,v:fmtN(m.newCustomers),dl:deltaBadge(m.newCustomers,p&&p.newCustomers),d:periodSel},
-      {l:M.buyers,v:fmtN(m.buyers),dl:deltaBadge(m.buyers,p&&p.buyers),d:periodSel},
-      {l:k.returned,v:fmtN(m.returned||0),dl:deltaBadge(m.returned||0,p?(p.returned||0):null),d:kd.returned}
+      {l:k.revenue,v:fmtSAR(m.revenue),r:grp(m.revenue)+" ﷼",dl:deltaBadge(m.revenue,p&&p.revenue),d:M.revLabel+" · "+periodSel},
+      {l:M.ordersLabel,v:fmtN(m.orders),r:grp(m.orders),dl:deltaBadge(m.orders,p&&p.orders),d:periodSel},
+      {l:k.aov,v:fmtSAR(m.aov),r:grp(m.aov)+" ﷼",dl:deltaBadge(m.aov,p&&p.aov),d:fmtN(m.orders)+" "+kd.orders},
+      {l:M.newCustomers,v:fmtN(m.newCustomers),r:grp(m.newCustomers),dl:deltaBadge(m.newCustomers,p&&p.newCustomers),d:periodSel},
+      {l:M.buyers,v:fmtN(m.buyers),r:grp(m.buyers),dl:deltaBadge(m.buyers,p&&p.buyers),d:periodSel},
+      {l:k.returned,v:fmtN(m.returned||0),r:grp(m.returned||0),dl:deltaBadge(m.returned||0,p?(p.returned||0):null),d:kd.returned}
     ];
     document.getElementById("kpis").innerHTML=mc.map(c=>
-      `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num">${c.v}</span></div><div class="d">${c.d}${p?" · "+M.vsPrev+" "+c.dl:""}</div></div>`).join("");
+      `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num"${c.r?` title="${c.r}"`:""}>${c.v}</span></div><div class="d">${c.d}${p?" · "+M.vsPrev+" "+c.dl:""}</div></div>`).join("");
     return;
   }
   const t=v.total||1;
   const cards=[
-    {l:k.customers,v:fmtN(v.total),d:C.STORES[current].noteAr},
-    {l:k.active,v:fmtN(v.active),d:Math.round(v.active/t*100)+kd.active},
-    {l:k.atrisk,v:fmtN(v.atrisk),d:kd.atrisk},
-    {l:k.churned,v:fmtN(v.churned),d:kd.churned},
-    {l:k.repeat,v:Math.round(v.repeat/t*100)+"%",d:fmtN(v.repeat)+" "+kd.repeatBuyers},
-    {l:k.aov,v:fmtSAR(v.aov),d:fmtN(v.orders)+" "+kd.orders},
-    {l:k.revenue,v:fmtSAR(v.revenue),d:kd.revenue},
+    {l:k.customers,v:fmtN(v.total),r:grp(v.total),d:C.STORES[current].noteAr},
+    {l:k.active,v:fmtN(v.active),r:grp(v.active),d:Math.round(v.active/t*100)+kd.active},
+    {l:k.atrisk,v:fmtN(v.atrisk),r:grp(v.atrisk),d:kd.atrisk},
+    {l:k.churned,v:fmtN(v.churned),r:grp(v.churned),d:kd.churned},
+    {l:k.repeat,v:Math.round(v.repeat/t*100)+"%",r:grp(v.repeat)+" "+kd.repeatBuyers,d:fmtN(v.repeat)+" "+kd.repeatBuyers},
+    {l:k.aov,v:fmtSAR(v.aov),r:grp(v.aov)+" ﷼",d:fmtN(v.orders)+" "+kd.orders},
+    {l:k.revenue,v:fmtSAR(v.revenue),r:grp(v.revenue)+" ﷼",d:kd.revenue},
     {l:k.top20,v:Math.round((v.top20share||0)*100)+"%",d:kd.ofRevenue},
-    {l:k.returned,v:fmtN(v.returnedOrders||0),d:kd.returned}
+    {l:k.returned,v:fmtN(v.returnedOrders||0),r:grp(v.returnedOrders||0),d:kd.returned}
   ];
   document.getElementById("kpis").innerHTML=cards.map(c=>
-    `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num">${c.v}</span></div><div class="d">${c.d}</div></div>`).join("");
+    `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num"${c.r?` title="${c.r}"`:""}>${c.v}</span></div><div class="d">${c.d}</div></div>`).join("");
 }
 
 function renderSegChart(d){
@@ -417,7 +422,7 @@ function renderActivation(d){
   document.getElementById("actBody").innerHTML=rows.map(r=>`<tr>
     <td><span class="seg-dot" style="background:${segColor(r.segment)}"></span><span class="seg-name">${segAr(r.segment)}</span></td>
     <td><span class="num">${r.count}</span></td>
-    <td><span class="num">${fmtSAR(r.revenue)}</span></td>
+    <td>${tSAR(r.revenue)}</td>
     <td>${stageAr(r.stage)}</td>
     <td class="play">${r.play}</td>
     <td>${r.ch.map(c=>`<span class="ch">${U.channels[c]}</span>`).join("")}</td>
@@ -435,7 +440,7 @@ function renderCustomers(d){
   document.getElementById("custBody").innerHTML=rows.slice(0,100).map(c=>`<tr>
     <td><div class="seg-name">${c.name}</div><div class="sub" style="font-size:11px"><span class="num">#${c.id}</span></div></td>
     <td><span class="num">${c.orders}</span></td>
-    <td><span class="num">${fmtSAR(c.revenue)}</span></td>
+    <td>${tSAR(c.revenue)}</td>
     <td>منذ <span class="num">${c.recencyDays}</span> ${U.daysAgo}</td>
     <td class="rfm">${c.R}</td><td class="rfm">${c.F}</td><td class="rfm">${c.M}</td>
     <td><span class="seg-dot" style="background:${segColor(c.segment)}"></span>${segAr(c.segment)}</td>
@@ -487,8 +492,8 @@ function renderPeriodTable(d){
   document.getElementById("monthlyHead").innerHTML=[c.period,c.sales,c.orders,c.aov,c.newCust,c.buyers,c.returned].map(t=>`<th>${t}</th>`).join("");
   const rows=[...curSeries(d)].reverse();
   document.getElementById("monthlyBody").innerHTML=rows.map(m=>`<tr class="${m.period===periodSel?'sel':''}" style="cursor:pointer" onclick="selectPeriod('${m.period===periodSel?'':m.period}')" title="${U.monthly.filterLabel}">
-    <td><b class="num">${m.period}</b></td><td><span class="num">${fmtSAR(m.revenue)}</span></td><td><span class="num">${m.orders}</span></td>
-    <td><span class="num">${fmtSAR(m.aov)}</span></td><td><span class="num">${m.newCustomers}</span></td><td><span class="num">${m.buyers}</span></td><td><span class="num">${m.returned||0}</span></td></tr>`).join("");
+    <td><b class="num">${m.period}</b></td><td>${tSAR(m.revenue)}</td><td>${tN(m.orders)}</td>
+    <td>${tSAR(m.aov)}</td><td>${tN(m.newCustomers)}</td><td>${tN(m.buyers)}</td><td>${tN(m.returned||0)}</td></tr>`).join("");
 }
 function renderGeo(d){
   const c=U.geo.cols;
@@ -496,7 +501,7 @@ function renderGeo(d){
   document.getElementById("t-geo-sub").textContent = periodSel ? (U.monthly.geoForPeriod+" · "+periodSel) : U.geo.sub;
   document.getElementById("geoHead").innerHTML=[c.city,c.revenue,c.customers,c.orders].map(t=>`<th>${t}</th>`).join("");
   document.getElementById("geoBody").innerHTML=g.map(x=>`<tr>
-    <td class="seg-name">${x.city||U.geo.unknown}</td><td><span class="num">${fmtSAR(x.revenue)}</span></td>
+    <td class="seg-name">${x.city||U.geo.unknown}</td><td>${tSAR(x.revenue)}</td>
     <td><span class="num">${x.customers}</span></td><td><span class="num">${x.orders}</span></td></tr>`).join("");
 }
 
@@ -574,7 +579,7 @@ function customerCard(c,contact){
     <div class="nm">${c.name} <span class="sub num" style="font-size:12px">#${c.id}</span></div>
     <div class="meta">
       <span><b>${U.custCols.orders}</b><span class="num">${c.orders}</span></span>
-      <span><b>${U.custCols.revenue}</b><span class="num">${fmtSAR(c.revenue)}</span></span>
+      <span><b>${U.custCols.revenue}</b>${tSAR(c.revenue)}</span>
       <span><b>${U.custCols.recency}</b>منذ <span class="num">${c.recencyDays}</span> ${U.daysAgo}</span>
       <span><b>RFM</b><span class="rfm num">${c.R}${c.F}${c.M}</span></span>
       <span><b>${U.custCols.segment}</b><span class="seg-dot" style="background:${segColor(c.segment)}"></span>${segAr(c.segment)}</span>
@@ -586,7 +591,7 @@ function matchesList(ms){
   const rows=ms.map(c=>`<tr>
     <td><span class="seg-name">${c.name}</span><div class="sub" style="font-size:11px"><span class="num">#${c.id}</span></div></td>
     <td><span class="num">${c.orders}</span></td>
-    <td><span class="num">${fmtSAR(c.revenue)}</span></td>
+    <td>${tSAR(c.revenue)}</td>
     <td><span class="seg-dot" style="background:${segColor(c.segment)}"></span>${segAr(c.segment)}</td>
     <td><button class="btn" onclick="viewCustomer('${c.id}')">${s.view}</button></td>
   </tr>`).join("");
