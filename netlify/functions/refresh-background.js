@@ -12,7 +12,7 @@
      curl -X POST https://<site>/.netlify/functions/refresh-background
    ============================================================================= */
 const CONFIG = require("../../config.js");
-const { buildSegments } = require("../../lib/salla.js");
+const { buildSegments, computeJourney } = require("../../lib/salla.js");
 const auth = require("../../lib/auth.js");
 
 const BLOB_STORE = "segments";
@@ -40,7 +40,9 @@ async function refreshStore(blobs, blobsAuth, storeKey) {
         R: c.R, F: c.F, M: c.M, segment: c.segment, tier: c.tier, customerType: c.customerType
       }))
     });
-    return { storeKey, ok: true, source: data.source, ordersScanned: data.ordersScanned, total: data.total };
+    // #4 — collect this store's cross-store hash keys (mobile hashes) for the journey join.
+    const hashes = all.map(c => c.hashKey).filter(Boolean);
+    return { storeKey, ok: true, source: data.source, ordersScanned: data.ordersScanned, total: data.total, hashes };
   } catch (e) {
     return { storeKey, ok: false, reason: String((e && e.message) || e), code: e && e.code };
   }
@@ -76,7 +78,19 @@ exports.handler = async (event) => {
   // Safe for single-use refresh because each store refreshes its OWN token once.
   const results = await Promise.all(keys.map((k) => refreshStore(blobs, blobsAuth, k)));
 
-  // Record a small index so we can see when the last refresh ran.
+  // #4 — cross-store journey: only recompute on a FULL refresh that covered every store in
+  // CROSS_JOURNEY.order (a single-store refresh can't see the others' hashes). Non-critical.
+  try {
+    const storeHashes = {};
+    results.forEach((r) => { if (r.ok && r.hashes) storeHashes[r.storeKey] = new Set(r.hashes); });
+    const order = (CONFIG.CROSS_JOURNEY || {}).order || [];
+    if (order.length && order.every((k) => storeHashes[k])) {
+      await blobs.setJSON("journey", computeJourney(storeHashes, CONFIG));
+    }
+  } catch (e) { /* journey is non-critical — never fail the refresh over it */ }
+
+  // strip the (large) hash arrays before recording the run summary.
+  results.forEach((r) => { delete r.hashes; });
   await blobs.setJSON("_meta", { refreshedAt: Date.now(), results });
 
   return { statusCode: 200, body: JSON.stringify({ refreshedAt: Date.now(), results }) };

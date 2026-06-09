@@ -184,6 +184,15 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
+    <div class="sec-head"><div><h2 id="t-cj"></h2><div class="sub" id="t-cj-sub"></div></div><div class="sub" id="cjMatched"></div></div>
+    <div class="grid2">
+      <div><div class="sub" id="t-cj-funnel" style="margin-bottom:8px"></div><div class="funnel" id="cjFunnel"></div></div>
+      <div><div class="sub" id="t-cj-reco" style="margin-bottom:8px"></div><div id="cjReco"></div></div>
+    </div>
+    <div class="sub" id="cjNote" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
     <div class="sec-head"><h2 id="t-act"></h2></div>
     <div class="tbl-wrap"><table id="actTable"><thead><tr id="actHead"></tr></thead><tbody id="actBody"></tbody></table></div>
   </div>
@@ -552,6 +561,50 @@ function renderAbandoned(d){
     <td>${r.city||"—"}</td><td>${fmtAge(r.ageMinutes)}</td></tr>`).join("") || `<tr><td colspan="5" class="sub">—</td></tr>`;
 }
 
+/* #4 — cross-store customer journey (fetched once; cross-store, independent of store tabs) */
+let journeyData=null;
+const CJCOLS=["#a3e635","#4f8cff","#7c5cff","#f472b6","#fb923c"];
+function sampleJourney(){
+  const order=(C.CROSS_JOURNEY&&C.CROSS_JOURNEY.order)||Object.keys(C.STORES);
+  const stageDist={},recommend={},perStore={};let total=0;
+  order.forEach((k,i)=>{const base=Math.round(520/(i+1));stageDist[k]=base;perStore[k]=base+(i<order.length-1?120:0);total+=base;});
+  order.forEach((k,i)=>{if(i>0)recommend[k]=stageDist[order[i-1]];});
+  return {found:true,sample:true,order,totalMatched:total,multiStore:Math.round(total*0.3),perStore,stageDist,recommend};
+}
+async function loadJourney(){
+  if(!journeyData){
+    try{const r=await apiFetch("./api/journey");const j=await r.json();journeyData=(j&&j.found)?j:sampleJourney();}
+    catch(e){journeyData=sampleJourney();}
+  }
+  renderJourney2(journeyData);
+}
+function renderJourney2(j){
+  const J=U.journey2, CJ=C.CROSS_JOURNEY||{};
+  document.getElementById("t-cj").textContent=J.title;
+  document.getElementById("t-cj-sub").textContent=J.sub;
+  document.getElementById("t-cj-funnel").textContent=J.funnelTitle;
+  document.getElementById("t-cj-reco").textContent=J.recoTitle;
+  document.getElementById("cjNote").textContent=J.coverageNote;
+  if(!j||!j.found){document.getElementById("cjMatched").textContent=J.none;return;}
+  document.getElementById("cjMatched").textContent=J.matchedNote(grp(j.totalMatched),grp(j.multiStore));
+  const order=j.order||[];
+  const stageLabel=k=>(CJ.stageAr&&CJ.stageAr[k])||(C.STORES[k]&&C.STORES[k].label)||k;
+  const storeLabel=k=>(C.STORES[k]&&C.STORES[k].label)||k;
+  const max=Math.max(1,...order.map(k=>j.stageDist[k]||0));
+  document.getElementById("cjFunnel").innerHTML=order.map((k,i)=>{
+    const v=j.stageDist[k]||0,w=Math.max(6,v/max*100);
+    return `<div class="fn-row"><div class="fn-name">${stageLabel(k)}</div>
+      <div class="fn-bar-wrap"><div class="fn-bar" style="width:${w}%;background:${CJCOLS[i%CJCOLS.length]}"><span class="num" title="${grp(v)}">${fmtN(v)}</span></div></div></div>`;
+  }).join("");
+  const recos=order.map((k,i)=>({k,i,n:j.recommend[k]||0})).filter(x=>x.n>0);
+  document.getElementById("cjReco").innerHTML=recos.map(x=>{
+    const action=(CJ.recommendAr&&CJ.recommendAr[order[x.i-1]])||"";
+    return `<div class="cust-card" style="padding:10px 14px;margin-bottom:8px">
+      <div><span class="num" title="${grp(x.n)}" style="font-weight:800;color:var(--accent)">${fmtN(x.n)}</span> ${J.recoLine("",storeLabel(x.k))}</div>
+      ${action?`<div class="sub" style="margin-top:4px">${action}</div>`:""}</div>`;
+  }).join("") || `<div class="sub">—</div>`;
+}
+
 /* CSV export — a selected period exports that period's metrics + its city breakdown;
    otherwise the whole current-granularity series. UTF-8 BOM so Excel reads Arabic. */
 function csvCell(v){ v=(v==null?"":String(v)); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
@@ -651,6 +704,7 @@ document.getElementById("custSearch").addEventListener("keydown",e=>{if(e.key===
 document.getElementById("custSearch").addEventListener("search",doCustomerSearch);
 
 load();
+loadJourney();
 </script>
 </body>
 </html>

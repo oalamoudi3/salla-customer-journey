@@ -78,6 +78,28 @@
       B2C: {}                 // consumers use the global defaults
     },
 
+    /* 2c) ──────── CROSS-STORE CUSTOMER JOURNEY (#4) ───────────────────────────
+       The three stores are project STAGES: a buyer of building materials is mid-
+       construction → next they need lighting, then finishing/smart touches. Customers
+       are matched across stores by a one-way hash of their mobile (raw mobile never
+       stored). `order` is the stage sequence; a customer's CURRENT stage = the furthest
+       store they've purchased from; the recommendation = the next store they haven't
+       bought from yet. Edit the order/labels here to retune the journey. */
+    CROSS_JOURNEY: {
+      order: ["BUILD_STATION", "LIGHTING", "HATCH"],
+      stageAr: {
+        BUILD_STATION: "مرحلة البناء (مواد البناء)",
+        LIGHTING:      "مرحلة الإضاءة",
+        HATCH:         "مرحلة التجهيز واللمسات الأخيرة"
+      },
+      // what to recommend to a customer whose furthest stage is each store:
+      recommendAr: {
+        BUILD_STATION: "العميل يبني الآن → اقترح منتجات الإضاءة",
+        LIGHTING:      "انتهى من الإضاءة → اقترح السيراميك والمنتجات الذكية واللمسات الأخيرة",
+        HATCH:         "عميل أكمل الرحلة → برامج ولاء وإعادة شراء وترشيح"
+      }
+    },
+
     /* 3) ───────── PULL SETTINGS ───────────────────────────────────────────── */
     PULL: {
       lookbackDays: 365,  // only orders newer than this feed Recency/Frequency/Monetary
@@ -130,7 +152,11 @@
       isPendingPayment: { path: "is_pending_payment",     fallback: [] },
       // customer registration date → drives "new customers per period" (who joined when).
       // Salla returns {date:"YYYY-MM-DD HH:mm:ss…",timezone…}; .date holds the timestamp.
-      customerCreatedAt:{ path: "customer.created_at.date", fallback: ["customer.created_at"] }
+      customerCreatedAt:{ path: "customer.created_at.date", fallback: ["customer.created_at"] },
+      // mobile → hashed (one-way) into a cross-store join key for the customer journey (#4).
+      // The RAW mobile is NEVER stored; only its hash. mobile_code is prepended when present.
+      customerMobile:   { path: "customer.mobile",         fallback: [] },
+      customerMobileCode:{ path: "customer.mobile_code",   fallback: [] }
     },
 
     /* 5) ───────── ORDER STATUS HANDLING ──────────────────────────────────────
@@ -266,6 +292,18 @@
         cols: { customer: "العميل", value: "القيمة", items: "العناصر", city: "المدينة", age: "منذ" },
         guest: "زائر",
         ageMin: "د", ageHour: "س", ageDay: "ي"
+      },
+      /* #4 — cross-store customer journey */
+      journey2: {
+        title: "رحلة العميل عبر المتاجر",
+        sub: "مطابقة العملاء عبر المتاجر الثلاثة (عبر بصمة الجوال) — في أي مرحلة هم الآن وما الخطوة التالية",
+        matchedNote: (n, m) => `طُوبق ${n} عميلًا عبر المتاجر · ${m} منهم اشتروا من أكثر من متجر.`,
+        stageCol: "المرحلة الحالية", countCol: "عملاء", recCol: "الإجراء/التوصية المقترحة",
+        funnelTitle: "توزيع العملاء حسب المرحلة",
+        recoTitle: "فرص الترقية للمرحلة التالية",
+        recoLine: (n, store) => `${n} عميلًا جاهزون للانتقال إلى «${store}»`,
+        coverageNote: "ملاحظة: تعتمد المطابقة على وجود رقم جوال للعميل؛ العملاء بدون جوال لا تُحتسب في المطابقة العابرة للمتاجر.",
+        none: "لم يُحتسب بعد — شغّل التحديث الليلي."
       },
       /* #2 — top selling categories (period-aware) */
       categories: {
