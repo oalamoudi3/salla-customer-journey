@@ -12,11 +12,28 @@
      curl -X POST https://<site>/.netlify/functions/refresh-background
    ============================================================================= */
 const CONFIG = require("../../config.js");
-const { buildSegments, computeJourney } = require("../../lib/salla.js");
+const { buildSegments, computeJourney, fetchProductMap } = require("../../lib/salla.js");
 const auth = require("../../lib/auth.js");
 
 const BLOB_STORE = "segments";
 const AUTH_STORE = "auth";
+
+/* #2 — product→category map cache. The catalog pull is heavy (tens of pages), so cache it
+   per store and only re-pull when older than PULL.productMapMaxAgeDays. This keeps the
+   nightly run light enough that the orders/carts pulls aren't starved by rate limits. */
+async function getProdMap(blobs, storeKey, token) {
+  const key = "prodmap_" + storeKey;
+  const maxAgeMs = (CONFIG.PULL.productMapMaxAgeDays || 7) * 864e5;
+  try {
+    const cached = await blobs.get(key, { type: "json" });
+    if (cached && cached.map && (Date.now() - (cached.generatedAt || 0) < maxAgeMs)) return cached.map;
+  } catch (e) { /* fall through to fetch */ }
+  const map = await fetchProductMap(token, CONFIG);            // non-critical (returns {} on failure)
+  if (map && Object.keys(map).length) {
+    try { await blobs.setJSON(key, { generatedAt: Date.now(), map }); } catch (e) { /* ignore cache write fail */ }
+  }
+  return map;
+}
 
 async function refreshStore(blobs, blobsAuth, storeKey) {
   const store = CONFIG.STORES[storeKey];
@@ -27,7 +44,8 @@ async function refreshStore(blobs, blobsAuth, storeKey) {
   catch (e) { return { storeKey, ok: false, reason: "auth: " + String((e && e.message) || e) }; }
   if (!token) return { storeKey, ok: false, reason: "no token (seed " + store.tokenEnv + " / refresh creds missing)" };
   try {
-    const data = await buildSegments({ storeKey, token, cfg: CONFIG });
+    const prodMap = await getProdMap(blobs, storeKey, token);  // cached; cheap on most nights
+    const data = await buildSegments({ storeKey, token, cfg: CONFIG, prodMap });
     // separate the full scored list from the aggregate the dashboard reads every load.
     const all = data.allCustomers || [];
     delete data.allCustomers;

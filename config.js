@@ -110,10 +110,14 @@
                           // pulls from Salla — it just reads the precomputed JSON from Blobs.
       monthlyMonths: 13,  // how many trailing months to keep in the monthly trend series
       geoTopCities:  20,  // how many cities to keep in the geographic breakdown
-      cartsMaxPages: 40,  // hard cap on abandoned-cart pages pulled (per_page applies)
+      cartsMaxPages: 40,  // hard cap on abandoned-cart pages pulled
+      cartsPerPage:  50,  // /carts/abandoned caps page size at 50 (per_page>50 → HTTP 422)
       abandonedTopN: 10,  // how many highest-value abandoned carts to surface
       productsMaxPages: 120, // hard cap on product-catalog pages (builds the name→category map)
-      topCategories: 12   // how many categories to keep per period in the category breakdown
+      topCategories: 12,  // how many categories to keep per period in the category breakdown
+      productMapMaxAgeDays: 7 // re-pull the (heavy) product→category map only when the cached
+                              // one is older than this; keeps nightly runs light so the orders/
+                              // carts pulls aren't rate-limited. Catalogs change slowly.
     },
 
     /* 3b) ─────── ABANDONED-CART field map (Salla /carts/abandoned) ────────────── */
