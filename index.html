@@ -167,6 +167,23 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
+    <div class="sec-head"><div><h2 id="t-cat"></h2><div class="sub" id="t-cat-sub"></div></div></div>
+    <div class="tbl-wrap"><table id="catTable"><thead><tr id="catHead"></tr></thead><tbody id="catBody"></tbody></table></div>
+    <div class="sub" id="catNote" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <div class="sec-head">
+      <div><h2 id="t-aband"></h2><div class="sub" id="t-aband-sub"></div></div>
+      <div style="display:flex;gap:8px 20px;flex-wrap:wrap;font-size:12.5px;color:var(--txt-2)">
+        <div><span id="abandCount" class="num"></span> · <span id="t-aband-count"></span></div>
+        <div><span id="abandValue" class="num"></span> · <span id="t-aband-value"></span></div>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table id="abandTable"><thead><tr id="abandHead"></tr></thead><tbody id="abandBody"></tbody></table></div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
     <div class="sec-head"><h2 id="t-act"></h2></div>
     <div class="tbl-wrap"><table id="actTable"><thead><tr id="actHead"></tr></thead><tbody id="actBody"></tbody></table></div>
   </div>
@@ -248,6 +265,10 @@ document.getElementById("granSelect").innerHTML=["month","quarter","year"].map(g
 document.getElementById("granSelect").value=gran;
 document.getElementById("t-geo").textContent=U.geo.title;
 document.getElementById("t-geo-sub").textContent=U.geo.sub;
+document.getElementById("t-cat").textContent=U.categories.title;
+document.getElementById("t-aband").textContent=U.abandoned.title;
+document.getElementById("t-aband-count").textContent=U.abandoned.count;
+document.getElementById("t-aband-value").textContent=U.abandoned.value;
 document.getElementById("actHead").innerHTML=
   [["segment",U.actCols.segment],["count",U.actCols.count],["revenue",U.actCols.revenue],
    ["stage",U.actCols.stage],["play",U.actCols.play],["",U.actCols.channels],["",U.actCols.export]]
@@ -307,7 +328,7 @@ async function load(){
     const combined=S.scoreStore(raw.map(c=>({...c})),C,current,null);
     const byType={};
     ["B2B","B2C"].forEach(ct=>{ byType[ct]=S.aggregate(S.scoreStore(raw.filter(c=>c.customerType===ct).map(c=>({...c})),C,current,ct),C,current); });
-    data=Object.assign({source:"offline",store:current,generatedAt:Date.now()},S.aggregate(combined,C,current),{byType},S.genSampleSeries(current,C));
+    data=Object.assign({source:"offline",store:current,generatedAt:Date.now(),abandoned:S.genSampleAbandoned(current,C)},S.aggregate(combined,C,current),{byType},S.genSampleSeries(current,C));
   }
   cache[current]=data;
   renderAll(data);
@@ -467,7 +488,7 @@ function buildPeriodFilter(d){
 function updateSnapshotNote(){ document.getElementById("snapshotNote").style.display=periodSel?"block":"none"; }
 // re-render only the period-driven panels (KPIs, trend highlight, table, geo)
 function refreshPeriodPanels(){ const d=cache[current]; document.getElementById("monthFilter").value=periodSel;
-  renderKPIs(d,viewData()); renderTrends(d); renderPeriodTable(d); renderGeo(d); updateSnapshotNote(); }
+  renderKPIs(d,viewData()); renderTrends(d); renderPeriodTable(d); renderGeo(d); renderCategories(d); updateSnapshotNote(); }
 function selectPeriod(pk){ periodSel=pk; refreshPeriodPanels(); }
 function renderTrends(d){
   const m=curSeries(d);
@@ -505,6 +526,32 @@ function renderGeo(d){
     <td><span class="num">${x.customers}</span></td><td><span class="num">${x.orders}</span></td></tr>`).join("");
 }
 
+/* #2 — top categories (period-aware, mirrors geo: per-period when a period is selected). */
+function renderCategories(d){
+  const CC=U.categories, c=CC.cols;
+  const list = periodSel ? (((d.categoriesByPeriod||{})[gran]||{})[periodSel]||[]) : (d.categories||[]);
+  document.getElementById("t-cat-sub").textContent = CC.sub + (periodSel?(" · "+periodSel):"");
+  const total = list.reduce((s,x)=>s+x.revenue,0)||1;
+  document.getElementById("catHead").innerHTML=[c.category,c.revenue,c.qty,c.share].map(t=>`<th>${t}</th>`).join("");
+  document.getElementById("catBody").innerHTML=list.map(x=>`<tr>
+    <td class="seg-name">${x.category||CC.unmatched}</td><td>${tSAR(x.revenue)}</td><td>${tN(x.qty)}</td>
+    <td><span class="num">${Math.round(x.revenue/total*100)}%</span></td></tr>`).join("") || `<tr><td colspan="4" class="sub">—</td></tr>`;
+  document.getElementById("catNote").textContent = (d.categoryMatchRate!=null)?CC.matchNote(d.categoryMatchRate):"";
+}
+
+/* #3 — top abandoned/failed carts by value (not period-filtered; current open carts). */
+function fmtAge(min){const A=U.abandoned; min=Math.max(0,Math.round(min||0)); if(min<60)return min+" "+A.ageMin; if(min<1440)return Math.round(min/60)+" "+A.ageHour; return Math.round(min/1440)+" "+A.ageDay;}
+function renderAbandoned(d){
+  const A=U.abandoned, c=A.cols, ab=d.abandoned||{count:0,value:0,top:[]};
+  document.getElementById("t-aband-sub").textContent=A.sub;
+  const ac=document.getElementById("abandCount"); ac.textContent=fmtN(ab.count); ac.title=grp(ab.count);
+  const av=document.getElementById("abandValue"); av.textContent=fmtSAR(ab.value); av.title=grp(ab.value)+" ﷼";
+  document.getElementById("abandHead").innerHTML=[c.customer,c.value,c.items,c.city,c.age].map(t=>`<th>${t}</th>`).join("");
+  document.getElementById("abandBody").innerHTML=(ab.top||[]).map(r=>`<tr>
+    <td class="seg-name">${r.name||A.guest}</td><td>${tSAR(r.total)}</td><td>${tN(r.items)}</td>
+    <td>${r.city||"—"}</td><td>${fmtAge(r.ageMinutes)}</td></tr>`).join("") || `<tr><td colspan="5" class="sub">—</td></tr>`;
+}
+
 /* CSV export — a selected period exports that period's metrics + its city breakdown;
    otherwise the whole current-granularity series. UTF-8 BOM so Excel reads Arabic. */
 function csvCell(v){ v=(v==null?"":String(v)); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
@@ -530,7 +577,7 @@ function renderAll(d){
   renderTabs(); renderCohortTabs(); renderStatus(d); buildPeriodFilter(d); updateSnapshotNote();
   renderKPIs(d,v); renderTrends(d); renderPeriodTable(d);
   renderSegChart(v); renderRevChart(v); renderFunnel(v); renderJourney(v);
-  renderGeo(d); renderActivation(v); renderCustomers(v);
+  renderGeo(d); renderCategories(d); renderAbandoned(d); renderActivation(v); renderCustomers(v);
 }
 document.getElementById("monthFilter").onchange=e=>{periodSel=e.target.value;refreshPeriodPanels();};
 document.getElementById("granSelect").onchange=e=>{gran=e.target.value;periodSel="";buildPeriodFilter(cache[current]);refreshPeriodPanels();};

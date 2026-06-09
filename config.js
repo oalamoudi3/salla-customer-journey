@@ -87,7 +87,20 @@
                           // store (HATCH ≈ 198 pages). The request-time endpoint no longer
                           // pulls from Salla — it just reads the precomputed JSON from Blobs.
       monthlyMonths: 13,  // how many trailing months to keep in the monthly trend series
-      geoTopCities:  20   // how many cities to keep in the geographic breakdown
+      geoTopCities:  20,  // how many cities to keep in the geographic breakdown
+      cartsMaxPages: 40,  // hard cap on abandoned-cart pages pulled (per_page applies)
+      abandonedTopN: 10,  // how many highest-value abandoned carts to surface
+      productsMaxPages: 120, // hard cap on product-catalog pages (builds the name→category map)
+      topCategories: 12   // how many categories to keep per period in the category breakdown
+    },
+
+    /* 3b) ─────── ABANDONED-CART field map (Salla /carts/abandoned) ────────────── */
+    CART_FIELD_MAP: {
+      total:         { path: "total.amount",        fallback: ["total"] },
+      customerFirst: { path: "customer.first_name",  fallback: ["customer.full_name"] },
+      city:          { path: "customer.city",        fallback: ["customer.city.name"] },
+      ageMinutes:    { path: "age_in_minutes",       fallback: [] },
+      createdAt:     { path: "created_at.date",       fallback: ["created_at"] }
     },
 
     /* 4) ───────── FIELD_MAP — where to read each value inside a Salla order ───
@@ -243,6 +256,24 @@
         sub: "حسب مدينة العميل (الإيرادات وعدد العملاء)",
         cols: { city: "المدينة", revenue: "الإيرادات", customers: "العملاء", orders: "الطلبات" },
         unknown: "غير محدد"
+      },
+      /* #3 — abandoned / failed carts (did not turn into orders) */
+      abandoned: {
+        title: "أعلى السلال المتروكة (لم تُكمل الدفع)",
+        sub: "طلبات لم تتحوّل إلى عملية شراء — أعلى ١٠ من حيث القيمة",
+        count: "إجمالي السلال المتروكة",
+        value: "قيمتها الإجمالية",
+        cols: { customer: "العميل", value: "القيمة", items: "العناصر", city: "المدينة", age: "منذ" },
+        guest: "زائر",
+        ageMin: "د", ageHour: "س", ageDay: "ي"
+      },
+      /* #2 — top selling categories (period-aware) */
+      categories: {
+        title: "أعلى الفئات مبيعًا",
+        sub: "حسب القيمة المدفوعة — يتبع فلتر الفترة أعلاه",
+        cols: { category: "الفئة", revenue: "القيمة", qty: "الكمية", share: "الحصة" },
+        matchNote: (pct) => `مبني على مطابقة أسماء المنتجات (طُوبق ${pct}% من عناصر الطلبات بالكتالوج).`,
+        unmatched: "غير مصنّف"
       },
       footer: "نسخة مباشرة · العتبات قابلة للتعديل من ملف config.js"
     }
