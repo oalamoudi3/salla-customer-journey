@@ -30,18 +30,21 @@ exports.handler = async (event) => {
     const { getStore } = await import("@netlify/blobs");
     const blobs = openStore(getStore, BLOB_STORE);
     const index = await blobs.get("index_" + storeKey, { type: "json" });
-    if (!index || !index.customers) {
-      return json(200, { found: false, store: storeKey, note: "no index yet — run the nightly refresh first" });
-    }
 
-    // exact id lookup → enrich with live contact info
+    // exact id lookup → RFM record from the index if present, PLUS live contact. Falls back
+    // to a contact-only result when the id isn't in the index (e.g. an abandoned-cart
+    // customer with no confirmed orders) so those transactions are still viewable.
     if (id) {
-      const c = index.customers.find(x => String(x.id) === id);
-      if (!c) return json(200, { found: false, store: storeKey, id });
+      const c = (index && index.customers) ? index.customers.find(x => String(x.id) === id) : null;
       // READ-ONLY token (never refresh in a request-path function); degrade to null contact.
       const token = await auth.readAccessToken(openStore(getStore, AUTH_STORE), storeKey, CONFIG);
       const contact = await fetchContact(token, id);
-      return json(200, { found: true, store: storeKey, customer: c, contact });
+      if (!c && !contact) return json(200, { found: false, store: storeKey, id });
+      return json(200, { found: true, store: storeKey, customer: c || null, contact });
+    }
+
+    if (!index || !index.customers) {
+      return json(200, { found: false, store: storeKey, note: "no index yet — run the nightly refresh first" });
     }
 
     // name / id fragment search (no contact lookup; keep it cheap)

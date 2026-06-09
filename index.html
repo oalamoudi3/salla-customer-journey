@@ -85,6 +85,8 @@ tbody tr:hover{background:var(--panel-2)}
 .delta.down{color:var(--bad);background:rgba(248,113,113,.13)}
 .delta.flat{color:var(--txt-2);background:var(--panel-2)}
 .tab.sm{padding:6px 13px;font-size:12.5px}
+.lnk{color:var(--accent);cursor:pointer;text-decoration:none;font-weight:700}
+.lnk:hover{text-decoration:underline}
 tbody tr.sel{background:rgba(124,92,255,.12)}
 .num{font-variant-numeric:tabular-nums;direction:ltr;display:inline-block}
 .rfm{font-weight:800;font-variant-numeric:tabular-nums}
@@ -555,10 +557,12 @@ function renderAbandoned(d){
   document.getElementById("t-aband-sub").textContent=A.sub;
   const ac=document.getElementById("abandCount"); ac.textContent=fmtN(ab.count); ac.title=grp(ab.count);
   const av=document.getElementById("abandValue"); av.textContent=fmtSAR(ab.value); av.title=grp(ab.value)+" ﷼";
-  document.getElementById("abandHead").innerHTML=[c.customer,c.value,c.items,c.city,c.age].map(t=>`<th>${t}</th>`).join("");
-  document.getElementById("abandBody").innerHTML=(ab.top||[]).map(r=>`<tr>
-    <td class="seg-name">${r.name||A.guest}</td><td>${tSAR(r.total)}</td><td>${tN(r.items)}</td>
-    <td>${r.city||"—"}</td><td>${fmtAge(r.ageMinutes)}</td></tr>`).join("") || `<tr><td colspan="5" class="sub">—</td></tr>`;
+  document.getElementById("abandHead").innerHTML=[c.customer,c.value,c.items,c.salla,c.age].map(t=>`<th>${t}</th>`).join("");
+  document.getElementById("abandBody").innerHTML=(ab.top||[]).map(r=>{
+    const nm = r.customerId ? `<a class="lnk" onclick="viewCustomer('${r.customerId}')" title="${A.view}">${r.name||("#"+r.customerId)}</a>` : (r.name||A.guest);
+    const salla = (r.checkoutUrl && r.checkoutUrl!=="#") ? `<a class="ch" href="${r.checkoutUrl}" target="_blank" rel="noopener">${A.openCart}</a>` : "—";
+    return `<tr><td class="seg-name">${nm}</td><td>${tSAR(r.total)}</td><td>${tN(r.items)}</td><td>${salla}</td><td>${fmtAge(r.ageMinutes)}</td></tr>`;
+  }).join("") || `<tr><td colspan="5" class="sub">—</td></tr>`;
 }
 
 /* #4 — cross-store customer journey (fetched once; cross-store, independent of store tabs) */
@@ -664,8 +668,21 @@ async function doCustomerSearch(){
   catch(e){SR.innerHTML=`<div class="cust-card">${U.search.noResult}</div>`;return;}
   if(d.note){SR.innerHTML=`<div class="cust-card">${U.search.needRefresh}</div>`;return;}
   if(d.customer){SR.innerHTML=customerCard(d.customer,d.contact);return;}
+  if(d.found&&d.contact){SR.innerHTML=contactCard(v,d.contact);return;}  // cart customer not in index → contact-only
   if(d.matches&&d.matches.length){SR.innerHTML=matchesList(d.matches);return;}
   SR.innerHTML=`<div class="cust-card">${U.search.noResult}</div>`;
+}
+/* minimal card for a customer found live (e.g. abandoned-cart customer) but not in the RFM index */
+function contactCard(id,contact){
+  const s=U.search;
+  return `<div class="cust-card">
+    <div class="nm"><span class="sub num" style="font-size:13px">#${id}</span></div>
+    ${contact?`<div class="contact">
+      ${contact.email?`<span><b>${s.email}</b><span class="num">${contact.email}</span></span>`:""}
+      ${contact.mobile?`<span><b>${s.mobile}</b><span class="num" style="direction:ltr">${contact.mobile}</span></span>`:""}
+      ${contact.city?`<span><b>${s.city}</b>${contact.city}</span>`:""}
+    </div>${contact.adminUrl?`<a class="salla" href="${contact.adminUrl}" target="_blank" rel="noopener">${s.openInSalla} ↗</a>`:""}`
+    :`<div class="contact">${s.noContact}</div>`}</div>`;
 }
 function customerCard(c,contact){
   const s=U.search;
@@ -698,7 +715,7 @@ function matchesList(ms){
   return `<div class="cust-card" style="padding:8px 12px"><div class="sub" style="margin:6px 4px 10px">${s.matchesTitle} — <span class="num">${ms.length}</span></div>
     <div class="tbl-wrap"><table><tbody>${rows}</tbody></table></div></div>`;
 }
-function viewCustomer(id){document.getElementById("custSearch").value=id;doCustomerSearch();}
+function viewCustomer(id){document.getElementById("custSearch").value=id;doCustomerSearch();const sr=document.getElementById("searchResult");if(sr&&sr.scrollIntoView)sr.scrollIntoView({behavior:"smooth",block:"center"});}
 document.getElementById("custSearchBtn").onclick=doCustomerSearch;
 document.getElementById("custSearch").addEventListener("keydown",e=>{if(e.key==="Enter")doCustomerSearch();});
 document.getElementById("custSearch").addEventListener("search",doCustomerSearch);

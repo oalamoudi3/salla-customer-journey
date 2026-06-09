@@ -113,6 +113,8 @@
       cartsMaxPages: 40,  // hard cap on abandoned-cart pages pulled
       cartsPerPage:  50,  // /carts/abandoned caps page size at 50 (per_page>50 → HTTP 422)
       abandonedTopN: 10,  // how many highest-value abandoned carts to surface
+      abandonedMaxDays: 28, // only count abandoned carts newer than this (recent, actionable)
+      abandonedLoggedInOnly: true, // only carts tied to a logged-in customer (have customer.id)
       productsMaxPages: 120, // hard cap on product-catalog pages (builds the name→category map)
       topCategories: 12,  // how many categories to keep per period in the category breakdown
       productMapMaxAgeDays: 7 // re-pull the (heavy) product→category map only when the cached
@@ -123,10 +125,13 @@
     /* 3b) ─────── ABANDONED-CART field map (Salla /carts/abandoned) ────────────── */
     CART_FIELD_MAP: {
       total:         { path: "total.amount",        fallback: ["total"] },
-      customerFirst: { path: "customer.first_name",  fallback: ["customer.full_name"] },
-      city:          { path: "customer.city",        fallback: ["customer.city.name"] },
+      customerId:    { path: "customer.id",          fallback: [] },   // logged-in marker + lookup key
+      customerFirst: { path: "customer.first_name",  fallback: ["customer.full_name", "customer.name"] },
+      checkoutUrl:   { path: "checkout_url",          fallback: ["urls.checkout"] }, // "open in Salla" link
       ageMinutes:    { path: "age_in_minutes",       fallback: [] },
       createdAt:     { path: "created_at.date",       fallback: ["created_at"] }
+      // NOTE: Salla does NOT record a payment method on abandoned carts (verified) — a cart
+      // is abandoned before payment, so there is no "failed payment method" field to read.
     },
 
     /* 4) ───────── FIELD_MAP — where to read each value inside a Salla order ───
@@ -290,11 +295,12 @@
       /* #3 — abandoned / failed carts (did not turn into orders) */
       abandoned: {
         title: "أعلى السلال المتروكة (لم تُكمل الدفع)",
-        sub: "طلبات لم تتحوّل إلى عملية شراء — أعلى ١٠ من حيث القيمة",
-        count: "إجمالي السلال المتروكة",
+        sub: "عملاء مسجّلون فقط · آخر ٢٨ يومًا · أعلى ١٠ من حيث القيمة",
+        count: "السلال المتروكة (٢٨ يومًا)",
         value: "قيمتها الإجمالية",
-        cols: { customer: "العميل", value: "القيمة", items: "العناصر", city: "المدينة", age: "منذ" },
+        cols: { customer: "العميل", value: "القيمة", items: "العناصر", salla: "فتح في سلة", age: "منذ" },
         guest: "زائر",
+        openCart: "فتح ↗", view: "عرض العميل",
         ageMin: "د", ageHour: "س", ageDay: "ي"
       },
       /* #4 — cross-store customer journey */
