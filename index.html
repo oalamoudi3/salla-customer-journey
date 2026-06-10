@@ -186,6 +186,18 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
+    <div class="sec-head">
+      <div><h2 id="t-failed"></h2><div class="sub" id="t-failed-sub"></div></div>
+      <div style="display:flex;gap:8px 20px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--txt-2)">
+        <div><span id="failedCount" class="num"></span> · <span id="t-failed-count"></span></div>
+        <div><span id="failedValue" class="num"></span> · <span id="t-failed-value"></span></div>
+        <a id="failedLog" class="ch" target="_blank" rel="noopener"></a>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table id="failedTable"><thead><tr id="failedHead"></tr></thead><tbody id="failedBody"></tbody></table></div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
     <div class="sec-head"><div><h2 id="t-cj"></h2><div class="sub" id="t-cj-sub"></div></div><div class="sub" id="cjMatched"></div></div>
     <div class="grid2">
       <div><div class="sub" id="t-cj-funnel" style="margin-bottom:8px"></div><div class="funnel" id="cjFunnel"></div></div>
@@ -280,6 +292,10 @@ document.getElementById("t-cat").textContent=U.categories.title;
 document.getElementById("t-aband").textContent=U.abandoned.title;
 document.getElementById("t-aband-count").textContent=U.abandoned.count;
 document.getElementById("t-aband-value").textContent=U.abandoned.value;
+document.getElementById("t-failed").textContent=U.failed.title;
+document.getElementById("t-failed-count").textContent=U.failed.count;
+document.getElementById("t-failed-value").textContent=U.failed.value;
+{ const fl=document.getElementById("failedLog"); fl.textContent=U.failed.openLog; fl.href=U.failed.logUrl; }
 document.getElementById("actHead").innerHTML=
   [["segment",U.actCols.segment],["count",U.actCols.count],["revenue",U.actCols.revenue],
    ["stage",U.actCols.stage],["play",U.actCols.play],["",U.actCols.channels],["",U.actCols.export]]
@@ -339,7 +355,7 @@ async function load(){
     const combined=S.scoreStore(raw.map(c=>({...c})),C,current,null);
     const byType={};
     ["B2B","B2C"].forEach(ct=>{ byType[ct]=S.aggregate(S.scoreStore(raw.filter(c=>c.customerType===ct).map(c=>({...c})),C,current,ct),C,current); });
-    data=Object.assign({source:"offline",store:current,generatedAt:Date.now(),abandoned:S.genSampleAbandoned(current,C)},S.aggregate(combined,C,current),{byType},S.genSampleSeries(current,C));
+    data=Object.assign({source:"offline",store:current,generatedAt:Date.now(),abandoned:S.genSampleAbandoned(current,C),failedPayments:S.genSampleFailed(current,C)},S.aggregate(combined,C,current),{byType},S.genSampleSeries(current,C));
   }
   cache[current]=data;
   renderAll(data);
@@ -560,8 +576,25 @@ function renderAbandoned(d){
   document.getElementById("abandHead").innerHTML=[c.customer,c.value,c.items,c.salla,c.age].map(t=>`<th>${t}</th>`).join("");
   document.getElementById("abandBody").innerHTML=(ab.top||[]).map(r=>{
     const nm = r.customerId ? `<a class="lnk" onclick="viewCustomer('${r.customerId}')" title="${A.view}">${r.name||("#"+r.customerId)}</a>` : (r.name||A.guest);
-    const salla = (r.checkoutUrl && r.checkoutUrl!=="#") ? `<a class="ch" href="${r.checkoutUrl}" target="_blank" rel="noopener">${A.openCart}</a>` : "—";
+    const salla = (r.adminUrl && r.adminUrl!=="#") ? `<a class="ch" href="${r.adminUrl}" target="_blank" rel="noopener">${A.openCart}</a>` : "—";
     return `<tr><td class="seg-name">${nm}</td><td>${tSAR(r.total)}</td><td>${tN(r.items)}</td><td>${salla}</td><td>${fmtAge(r.ageMinutes)}</td></tr>`;
+  }).join("") || `<tr><td colspan="5" class="sub">—</td></tr>`;
+}
+
+/* #3b — top failed electronic payments (from the Salla transactions log). */
+function fmtTxDate(s){ return s ? String(s).slice(0,16) : ""; }
+function renderFailed(d){
+  const F=U.failed, c=F.cols, fp=d.failedPayments||{count:0,value:0,top:[]};
+  document.getElementById("t-failed-sub").textContent=F.sub;
+  const fc=document.getElementById("failedCount"); fc.textContent=fmtN(fp.count); fc.title=grp(fp.count);
+  const fv=document.getElementById("failedValue"); fv.textContent=fmtSAR(fp.value); fv.title=grp(fp.value)+" ﷼";
+  document.getElementById("failedHead").innerHTML=[c.op,c.customer,c.value,c.method,c.salla].map(t=>`<th>${t}</th>`).join("");
+  document.getElementById("failedBody").innerHTML=(fp.top||[]).map(r=>{
+    const cust = r.customerId ? `<a class="lnk" onclick="viewCustomer('${r.customerId}')" title="${F.view}">${r.name||("#"+r.customerId)}</a>` : (r.name||F.guest);
+    const method = (r.method||"—")+(r.card?` · <span class="num" style="direction:ltr">${r.card}</span>`:"");
+    const salla = (r.adminUrl && r.adminUrl!=="#") ? `<a class="ch" href="${r.adminUrl}" target="_blank" rel="noopener">${U.abandoned.openCart}</a>` : "—";
+    return `<tr><td><span class="num" style="font-size:11px">#${r.txId}</span><div class="sub" style="font-size:10.5px">${fmtTxDate(r.createdAt)}</div></td>
+      <td class="seg-name">${cust}</td><td>${tSAR(r.amount)}</td><td>${method}</td><td>${salla}</td></tr>`;
   }).join("") || `<tr><td colspan="5" class="sub">—</td></tr>`;
 }
 
@@ -634,7 +667,7 @@ function renderAll(d){
   renderTabs(); renderCohortTabs(); renderStatus(d); buildPeriodFilter(d); updateSnapshotNote();
   renderKPIs(d,v); renderTrends(d); renderPeriodTable(d);
   renderSegChart(v); renderRevChart(v); renderFunnel(v); renderJourney(v);
-  renderGeo(d); renderCategories(d); renderAbandoned(d); renderActivation(v); renderCustomers(v);
+  renderGeo(d); renderCategories(d); renderAbandoned(d); renderFailed(d); renderActivation(v); renderCustomers(v);
 }
 document.getElementById("monthFilter").onchange=e=>{periodSel=e.target.value;refreshPeriodPanels();};
 document.getElementById("granSelect").onchange=e=>{gran=e.target.value;periodSel="";buildPeriodFilter(cache[current]);refreshPeriodPanels();};

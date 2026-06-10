@@ -115,6 +115,11 @@
       abandonedTopN: 10,  // how many highest-value abandoned carts to surface
       abandonedMaxDays: 28, // only count abandoned carts newer than this (recent, actionable)
       abandonedLoggedInOnly: true, // only carts tied to a logged-in customer (have customer.id)
+      txPerPage:     50,  // /transactions page size
+      txMaxPages:    80,  // safety cap on transaction pages (recent-first; we stop at txMaxDays)
+      txMaxDays:     15,  // failed-payments window (matches the Salla "last 15 days" log)
+      failedTopN:    10,  // how many highest-value FAILED payments to surface
+      adminUrlTopN:  10,  // fetch the Salla-admin customer URL for this many top rows per panel
       productsMaxPages: 120, // hard cap on product-catalog pages (builds the name→category map)
       topCategories: 12,  // how many categories to keep per period in the category breakdown
       productMapMaxAgeDays: 7 // re-pull the (heavy) product→category map only when the cached
@@ -132,6 +137,24 @@
       createdAt:     { path: "created_at.date",       fallback: ["created_at"] }
       // NOTE: Salla does NOT record a payment method on abandoned carts (verified) — a cart
       // is abandoned before payment, so there is no "failed payment method" field to read.
+    },
+
+    /* 3c) ─────── TRANSACTIONS (Salla /admin/v2/transactions) — FAILED PAYMENTS ────
+       The electronic-payments log (s.salla.sa/log/transactions). Requires the Salla app
+       scope `transactions.read`. A FAILED payment = status.slug "canceled" (ملغية) — these
+       are real payment attempts (method known) that did NOT become an order (order_id null). */
+    FAILED_STATUS_SLUGS: ["canceled"],
+    TX_FIELD_MAP: {
+      txId:          { path: "id",                    fallback: ["references.transaction"] },
+      customerId:    { path: "customer.id",            fallback: [] },
+      customerFirst: { path: "customer.first_name",    fallback: ["customer.full_name"] },
+      amount:        { path: "total.amount",           fallback: ["total"] },
+      statusSlug:    { path: "status.slug",            fallback: [] },
+      method:        { path: "payment_method.name",    fallback: ["payment_method.slug"] },
+      cardBrand:     { path: "card.brand",             fallback: [] },
+      cardNumber:    { path: "card.number",            fallback: [] },
+      orderId:       { path: "references.order_id",     fallback: [] },
+      createdAt:     { path: "created_at.date",         fallback: ["created_at"] }
     },
 
     /* 4) ───────── FIELD_MAP — where to read each value inside a Salla order ───
@@ -302,6 +325,17 @@
         guest: "زائر",
         openCart: "فتح ↗", view: "عرض العميل",
         ageMin: "د", ageHour: "س", ageDay: "ي"
+      },
+      /* #3b — failed electronic payments (from the Salla transactions log) */
+      failed: {
+        title: "أعلى المدفوعات الفاشلة (لم تكتمل)",
+        sub: "محاولات دفع ملغية لم تتحوّل إلى طلب · آخر ١٥ يومًا · أعلى ١٠ من حيث القيمة",
+        count: "المدفوعات الفاشلة (١٥ يومًا)",
+        value: "قيمتها الإجمالية",
+        cols: { op: "العملية", customer: "العميل", value: "القيمة", method: "طريقة الدفع", salla: "فتح في سلة" },
+        statusFailed: "ملغية", openLog: "السجل ↗", view: "عرض العميل", guest: "زائر",
+        logUrl: "https://s.salla.sa/log/transactions",
+        needScope: "يتطلب صلاحية transactions.read على تطبيق سلة لهذا المتجر."
       },
       /* #4 — cross-store customer journey */
       journey2: {
