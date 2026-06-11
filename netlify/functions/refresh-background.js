@@ -58,9 +58,10 @@ async function refreshStore(blobs, blobsAuth, storeKey) {
         R: c.R, F: c.F, M: c.M, segment: c.segment, tier: c.tier, customerType: c.customerType
       }))
     });
-    // #4 — collect this store's cross-store hash keys (mobile hashes) for the journey join.
-    const hashes = all.map(c => c.hashKey).filter(Boolean);
-    return { storeKey, ok: true, source: data.source, ordersScanned: data.ordersScanned, total: data.total, hashes };
+    // #4 — collect this store's cross-store customer records (mobile HASH + id/name/revenue,
+    // no raw PII) for the journey join + actionable candidate lists.
+    const journeyCusts = all.filter(c => c.hashKey).map(c => ({ h: c.hashKey, id: c.id, name: c.name, revenue: c.revenue }));
+    return { storeKey, ok: true, source: data.source, ordersScanned: data.ordersScanned, total: data.total, journeyCusts };
   } catch (e) {
     return { storeKey, ok: false, reason: String((e && e.message) || e), code: e && e.code };
   }
@@ -99,11 +100,11 @@ exports.handler = async (event) => {
   // #4 — cross-store journey: only recompute on a FULL refresh that covered every store in
   // CROSS_JOURNEY.order (a single-store refresh can't see the others' hashes). Non-critical.
   try {
-    const storeHashes = {};
-    results.forEach((r) => { if (r.ok && r.hashes) storeHashes[r.storeKey] = new Set(r.hashes); });
+    const storeCusts = {};
+    results.forEach((r) => { if (r.ok && r.journeyCusts) storeCusts[r.storeKey] = r.journeyCusts; });
     const order = (CONFIG.CROSS_JOURNEY || {}).order || [];
-    if (order.length && order.every((k) => storeHashes[k])) {
-      await blobs.setJSON("journey", computeJourney(storeHashes, CONFIG));
+    if (order.length && order.every((k) => storeCusts[k])) {
+      await blobs.setJSON("journey", computeJourney(storeCusts, CONFIG));
     }
   } catch (e) { /* journey is non-critical — never fail the refresh over it */ }
 

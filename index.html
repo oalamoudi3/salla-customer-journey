@@ -39,6 +39,10 @@ header.top{display:flex;justify-content:space-between;align-items:flex-end;flex-
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--gap);margin-bottom:var(--gap)}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px}
 .kpi .l{font-size:11.5px;color:var(--txt-3);font-weight:700}
+.kpi-row-label{grid-column:1/-1;font-size:12px;font-weight:800;color:var(--txt-2);margin:6px 0 -4px;display:flex;align-items:center;gap:8px}
+.kpi-row-label::before{content:"";width:4px;height:14px;border-radius:3px;background:var(--accent)}
+.kpi-row-label.snap::before{background:var(--accent-2)}
+.kpi.snap{background:var(--panel-2);border-style:dashed}
 .kpi .v{font-size:25px;font-weight:800;margin-top:6px}
 .kpi .d{font-size:11.5px;color:var(--txt-2);margin-top:3px}
 
@@ -87,6 +91,11 @@ tbody tr:hover{background:var(--panel-2)}
 .tab.sm{padding:6px 13px;font-size:12.5px}
 .lnk{color:var(--accent);cursor:pointer;text-decoration:none;font-weight:700}
 .lnk:hover{text-decoration:underline}
+a.tab.sm{text-decoration:none;display:inline-flex;align-items:center}
+.glossary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.gl-sec h4{font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px}
+.gl-sec .gi{font-size:12px;color:var(--txt-2);margin-bottom:7px;line-height:1.7}
+.gl-sec .gi b{color:var(--txt);font-weight:700}
 tbody tr.sel{background:rgba(124,92,255,.12)}
 .num{font-variant-numeric:tabular-nums;direction:ltr;display:inline-block}
 .rfm{font-weight:800;font-variant-numeric:tabular-nums}
@@ -116,8 +125,19 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
 <div class="wrap">
   <header class="top">
     <div><h1 id="ttl"></h1><div class="sub" id="subttl"></div></div>
-    <div class="tabs" id="storeTabs"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <div class="tabs" id="storeTabs"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="tab sm" id="glossaryBtn" type="button"></button>
+        <a class="tab sm" id="calendarLink" href="./calendar.html"></a>
+      </div>
+    </div>
   </header>
+
+  <div class="card" id="glossaryCard" style="display:none;margin-bottom:var(--gap)">
+    <div class="sec-head"><h2 id="t-glossary"></h2></div>
+    <div id="glossaryBody" class="glossary-grid"></div>
+  </div>
 
   <div class="statusbar">
     <span id="srcPill" class="pill sample">…</span>
@@ -198,9 +218,13 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
   </div>
 
   <div class="card" style="margin-bottom:var(--gap)">
-    <div class="sec-head"><div><h2 id="t-cj"></h2><div class="sub" id="t-cj-sub"></div></div><div class="sub" id="cjMatched"></div></div>
+    <div class="sec-head"><div><h2 id="t-cj"></h2><div class="sub" id="t-cj-sub"></div></div></div>
+    <div class="kpis" id="cjKpis" style="margin-bottom:var(--gap)"></div>
     <div class="grid2">
-      <div><div class="sub" id="t-cj-funnel" style="margin-bottom:8px"></div><div class="funnel" id="cjFunnel"></div></div>
+      <div>
+        <div class="sub" id="t-cj-funnel" style="margin-bottom:8px"></div><div class="funnel" id="cjFunnel"></div>
+        <div class="sub" id="t-cj-conv" style="margin:14px 0 8px"></div><div id="cjConv"></div>
+      </div>
       <div><div class="sub" id="t-cj-reco" style="margin-bottom:8px"></div><div id="cjReco"></div></div>
     </div>
     <div class="sub" id="cjNote" style="margin-top:10px"></div>
@@ -264,6 +288,11 @@ async function apiFetch(url){
 /* static text */
 document.getElementById("ttl").textContent=U.title;
 document.getElementById("subttl").textContent=U.subtitle;
+document.getElementById("glossaryBtn").textContent=U.glossary.toggle;
+document.getElementById("calendarLink").textContent=U.glossary.calendar;
+document.getElementById("t-glossary").textContent=U.glossary.title;
+document.getElementById("glossaryBody").innerHTML=(C.GLOSSARY||[]).map(s=>`<div class="gl-sec"><h4>${s.h}</h4>${(s.items||[]).map(it=>`<div class="gi"><b>${it[0]}:</b> ${it[1]}</div>`).join("")}</div>`).join("");
+document.getElementById("glossaryBtn").onclick=()=>{const c=document.getElementById("glossaryCard");c.style.display=(c.style.display==="none")?"block":"none";};
 document.getElementById("t-seg").textContent=U.segChartTitle;
 document.getElementById("t-rev").textContent=U.revChartTitle;
 document.getElementById("t-funnel").textContent=U.funnelTitle;
@@ -293,7 +322,7 @@ document.getElementById("t-aband").textContent=U.abandoned.title;
 document.getElementById("t-aband-count").textContent=U.abandoned.count;
 document.getElementById("t-aband-value").textContent=U.abandoned.value;
 document.getElementById("t-failed").textContent=U.failed.title;
-document.getElementById("t-failed-count").textContent=U.failed.count;
+document.getElementById("t-failed-count").textContent=U.failed.customers;
 document.getElementById("t-failed-value").textContent=U.failed.value;
 { const fl=document.getElementById("failedLog"); fl.textContent=U.failed.openLog; fl.href=U.failed.logUrl; }
 document.getElementById("actHead").innerHTML=
@@ -381,41 +410,44 @@ function deltaBadge(cur,prev){
   if(pct===0) return `<span class="delta flat">0%</span>`;
   return `<span class="delta ${pct>0?'up':'down'}">${pct>0?'▲':'▼'} ${Math.abs(pct)}%</span>`;
 }
-/* d = combined data (period numbers); v = cohort view data (all-time snapshot KPIs) */
-function renderKPIs(d,v){
-  const k=U.kpis, kd=U.kpiDesc, M=U.monthly;
-  // period view: order-based numbers for the selected period, with vs-previous deltas.
-  // (Period numbers are not split by cohort — they reflect all customer types.)
+/* sales metrics for the selected period; periodSel="" → aggregate of the whole window
+   (last year). Order-based, NOT cohort-split. prev = previous period (for sub-period deltas). */
+function periodMetrics(d){
+  const series=curSeries(d);
   if(periodSel){
-    const series=curSeries(d), idx=series.findIndex(x=>x.period===periodSel);
-    const m=series[idx]||{revenue:0,orders:0,aov:0,newCustomers:0,buyers:0};
-    const p=idx>0?series[idx-1]:null;
-    const mc=[
-      {l:k.revenue,v:fmtSAR(m.revenue),r:grp(m.revenue)+" ﷼",dl:deltaBadge(m.revenue,p&&p.revenue),d:M.revLabel+" · "+periodSel},
-      {l:M.ordersLabel,v:fmtN(m.orders),r:grp(m.orders),dl:deltaBadge(m.orders,p&&p.orders),d:periodSel},
-      {l:k.aov,v:fmtSAR(m.aov),r:grp(m.aov)+" ﷼",dl:deltaBadge(m.aov,p&&p.aov),d:fmtN(m.orders)+" "+kd.orders},
-      {l:M.newCustomers,v:fmtN(m.newCustomers),r:grp(m.newCustomers),dl:deltaBadge(m.newCustomers,p&&p.newCustomers),d:periodSel},
-      {l:M.buyers,v:fmtN(m.buyers),r:grp(m.buyers),dl:deltaBadge(m.buyers,p&&p.buyers),d:periodSel},
-      {l:k.returned,v:fmtN(m.returned||0),r:grp(m.returned||0),dl:deltaBadge(m.returned||0,p?(p.returned||0):null),d:kd.returned}
-    ];
-    document.getElementById("kpis").innerHTML=mc.map(c=>
-      `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num"${c.r?` title="${c.r}"`:""}>${c.v}</span></div><div class="d">${c.d}${p?" · "+M.vsPrev+" "+c.dl:""}</div></div>`).join("");
-    return;
+    const idx=series.findIndex(x=>x.period===periodSel);
+    return { m: series[idx]||{revenue:0,orders:0,aov:0,newCustomers:0,buyers:0,returned:0}, prev: idx>0?series[idx-1]:null, label: periodSel };
   }
+  const agg={revenue:0,orders:0,newCustomers:0,returned:0};
+  series.forEach(s=>{ agg.revenue+=s.revenue||0; agg.orders+=s.orders||0; agg.newCustomers+=s.newCustomers||0; agg.returned+=s.returned||0; });
+  agg.buyers = d.total||0;                              // unique buyers over the year = customer count
+  agg.aov = agg.orders ? Math.round(agg.revenue/agg.orders) : 0;
+  return { m: agg, prev: null, label: U.monthly.allTime };
+}
+/* d = combined data (sales metrics, period-filtered); v = cohort view data (current snapshot) */
+function renderKPIs(d,v){
+  const k=U.kpis, kd=U.kpiDesc, M=U.monthly, { m, prev, label } = periodMetrics(d);
+  const sales=[
+    {l:M.revLabel,v:fmtSAR(m.revenue),r:grp(m.revenue)+" ﷼",dl:deltaBadge(m.revenue,prev&&prev.revenue),d:M.revLabel+" · "+label},
+    {l:M.ordersLabel,v:fmtN(m.orders),r:grp(m.orders),dl:deltaBadge(m.orders,prev&&prev.orders),d:label},
+    {l:k.aov,v:fmtSAR(m.aov),r:grp(m.aov)+" ﷼",dl:deltaBadge(m.aov,prev&&prev.aov),d:fmtN(m.orders)+" "+kd.orders},
+    {l:M.newCustomers,v:fmtN(m.newCustomers),r:grp(m.newCustomers),dl:deltaBadge(m.newCustomers,prev&&prev.newCustomers),d:label},
+    {l:M.buyers,v:fmtN(m.buyers),r:grp(m.buyers),dl:deltaBadge(m.buyers,prev&&prev.buyers),d:label},
+    {l:k.returned,v:fmtN(m.returned||0),r:grp(m.returned||0),dl:deltaBadge(m.returned||0,prev?(prev.returned||0):null),d:kd.returned}
+  ];
   const t=v.total||1;
-  const cards=[
+  const snap=[
     {l:k.customers,v:fmtN(v.total),r:grp(v.total),d:C.STORES[current].noteAr},
     {l:k.active,v:fmtN(v.active),r:grp(v.active),d:Math.round(v.active/t*100)+kd.active},
     {l:k.atrisk,v:fmtN(v.atrisk),r:grp(v.atrisk),d:kd.atrisk},
     {l:k.churned,v:fmtN(v.churned),r:grp(v.churned),d:kd.churned},
-    {l:k.repeat,v:Math.round(v.repeat/t*100)+"%",r:grp(v.repeat)+" "+kd.repeatBuyers,d:fmtN(v.repeat)+" "+kd.repeatBuyers},
-    {l:k.aov,v:fmtSAR(v.aov),r:grp(v.aov)+" ﷼",d:fmtN(v.orders)+" "+kd.orders},
-    {l:k.revenue,v:fmtSAR(v.revenue),r:grp(v.revenue)+" ﷼",d:kd.revenue},
-    {l:k.top20,v:Math.round((v.top20share||0)*100)+"%",d:kd.ofRevenue},
-    {l:k.returned,v:fmtN(v.returnedOrders||0),r:grp(v.returnedOrders||0),d:kd.returned}
+    {l:k.repeat,v:Math.round(v.repeat/t*100)+"%",d:fmtN(v.repeat)+" "+kd.repeatBuyers},
+    {l:k.top20,v:Math.round((v.top20share||0)*100)+"%",d:kd.ofRevenue}
   ];
-  document.getElementById("kpis").innerHTML=cards.map(c=>
-    `<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num"${c.r?` title="${c.r}"`:""}>${c.v}</span></div><div class="d">${c.d}</div></div>`).join("");
+  const card=(c,cls)=>`<div class="kpi${cls||""}"><div class="l">${c.l}</div><div class="v"><span class="num"${c.r?` title="${c.r}"`:""}>${c.v}</span></div><div class="d">${c.d}${(prev&&c.dl)?" · "+M.vsPrev+" "+c.dl:""}</div></div>`;
+  document.getElementById("kpis").innerHTML=
+    `<div class="kpi-row-label">${U.kpiSalesLabel} · ${label}</div>`+sales.map(c=>card(c)).join("")+
+    `<div class="kpi-row-label snap">${U.kpiSnapshotLabel}</div>`+snap.map(c=>`<div class="kpi snap"><div class="l">${c.l}</div><div class="v"><span class="num"${c.r?` title="${c.r}"`:""}>${c.v}</span></div><div class="d">${c.d}</div></div>`).join("");
 }
 
 function renderSegChart(d){
@@ -584,18 +616,18 @@ function renderAbandoned(d){
 /* #3b — top failed electronic payments (from the Salla transactions log). */
 function fmtTxDate(s){ return s ? String(s).slice(0,16) : ""; }
 function renderFailed(d){
-  const F=U.failed, c=F.cols, fp=d.failedPayments||{count:0,value:0,top:[]};
+  const F=U.failed, c=F.cols, fp=d.failedPayments||{count:0,customers:0,value:0,top:[]};
   document.getElementById("t-failed-sub").textContent=F.sub;
-  const fc=document.getElementById("failedCount"); fc.textContent=fmtN(fp.count); fc.title=grp(fp.count);
+  const fc=document.getElementById("failedCount"); fc.textContent=fmtN(fp.customers||0); fc.title=grp(fp.count||0)+" محاولة";
   const fv=document.getElementById("failedValue"); fv.textContent=fmtSAR(fp.value); fv.title=grp(fp.value)+" ﷼";
-  document.getElementById("failedHead").innerHTML=[c.op,c.customer,c.value,c.method,c.salla].map(t=>`<th>${t}</th>`).join("");
+  document.getElementById("failedHead").innerHTML=[c.customer,c.value,c.attempts,c.method,c.date,c.salla].map(t=>`<th>${t}</th>`).join("");
   document.getElementById("failedBody").innerHTML=(fp.top||[]).map(r=>{
     const cust = r.customerId ? `<a class="lnk" onclick="viewCustomer('${r.customerId}')" title="${F.view}">${r.name||("#"+r.customerId)}</a>` : (r.name||F.guest);
     const method = (r.method||"—")+(r.card?` · <span class="num" style="direction:ltr">${r.card}</span>`:"");
+    const att = r.attempts>1 ? `<b style="color:var(--warn)">${r.attempts}×</b>` : `${r.attempts}×`;
     const salla = (r.adminUrl && r.adminUrl!=="#") ? `<a class="ch" href="${r.adminUrl}" target="_blank" rel="noopener">${U.abandoned.openCart}</a>` : "—";
-    return `<tr><td><span class="num" style="font-size:11px">#${r.txId}</span><div class="sub" style="font-size:10.5px">${fmtTxDate(r.createdAt)}</div></td>
-      <td class="seg-name">${cust}</td><td>${tSAR(r.amount)}</td><td>${method}</td><td>${salla}</td></tr>`;
-  }).join("") || `<tr><td colspan="5" class="sub">—</td></tr>`;
+    return `<tr><td class="seg-name">${cust}</td><td>${tSAR(r.value)}</td><td><span class="num">${att}</span></td><td>${method}</td><td><span class="num" style="font-size:11px">${fmtTxDate(r.createdAt)}</span></td><td>${salla}</td></tr>`;
+  }).join("") || `<tr><td colspan="6" class="sub">—</td></tr>`;
 }
 
 /* #4 — cross-store customer journey (fetched once; cross-store, independent of store tabs) */
@@ -603,10 +635,13 @@ let journeyData=null;
 const CJCOLS=["#a3e635","#4f8cff","#7c5cff","#f472b6","#fb923c"];
 function sampleJourney(){
   const order=(C.CROSS_JOURNEY&&C.CROSS_JOURNEY.order)||Object.keys(C.STORES);
-  const stageDist={},recommend={},perStore={};let total=0;
-  order.forEach((k,i)=>{const base=Math.round(520/(i+1));stageDist[k]=base;perStore[k]=base+(i<order.length-1?120:0);total+=base;});
-  order.forEach((k,i)=>{if(i>0)recommend[k]=stageDist[order[i-1]];});
-  return {found:true,sample:true,order,totalMatched:total,multiStore:Math.round(total*0.3),perStore,stageDist,recommend};
+  const stageDist={},perStore={},stageValue={};let total=0,mv=0;
+  order.forEach((k,i)=>{const base=Math.round(520/(i+1));stageDist[k]=base;perStore[k]=base+(i<order.length-1?120:0);stageValue[k]=base*1800;total+=base;mv+=base*900;});
+  const stages=order.map(k=>({store:k,reach:perStore[k],furthest:stageDist[k],furthestValue:stageValue[k]}));
+  const conversions=[];for(let i=0;i<order.length-1;i++)conversions.push({from:order[i],to:order[i+1],rate:[42,28][i]||30,fromCount:perStore[order[i]],both:Math.round(perStore[order[i]]*0.35)});
+  const FIRST=["عبدالله","محمد","نورة","خالد","سارة","فيصل","ريم"],LAST=["القحطاني","الحربي","الغامدي","الدوسري","العتيبي"];
+  const recommend={};order.forEach((k,i)=>{if(i>0){const cnt=stageDist[order[i-1]];const sample=[];for(let s=0;s<12;s++)sample.push({store:order[i-1],id:String(700000+Math.floor(Math.random()*99999)),name:FIRST[s%FIRST.length]+" "+LAST[s%LAST.length],revenue:Math.round(2000+Math.random()*18000)});sample.sort((a,b)=>b.revenue-a.revenue);recommend[k]={count:cnt,value:sample.reduce((x,c)=>x+c.revenue,0)*3,sample};}});
+  return {found:true,sample:true,order,totalMatched:total,multiStore:Math.round(total*0.3),multiStoreValue:mv,stages,conversions,recommend,stageDist,perStore};
 }
 async function loadJourney(){
   if(!journeyData){
@@ -615,31 +650,63 @@ async function loadJourney(){
   }
   renderJourney2(journeyData);
 }
+const stLabel=k=>((C.CROSS_JOURNEY||{}).stageAr&&C.CROSS_JOURNEY.stageAr[k])||(C.STORES[k]&&C.STORES[k].label)||k;
+const stStore=k=>(C.STORES[k]&&C.STORES[k].label)||k;
 function renderJourney2(j){
   const J=U.journey2, CJ=C.CROSS_JOURNEY||{};
   document.getElementById("t-cj").textContent=J.title;
   document.getElementById("t-cj-sub").textContent=J.sub;
-  document.getElementById("t-cj-funnel").textContent=J.funnelTitle;
+  document.getElementById("t-cj-funnel").textContent=J.kStages;
+  document.getElementById("t-cj-conv").textContent=J.convTitle;
   document.getElementById("t-cj-reco").textContent=J.recoTitle;
   document.getElementById("cjNote").textContent=J.coverageNote;
-  if(!j||!j.found){document.getElementById("cjMatched").textContent=J.none;return;}
-  document.getElementById("cjMatched").textContent=J.matchedNote(grp(j.totalMatched),grp(j.multiStore));
+  if(!j||!j.found){document.getElementById("cjKpis").innerHTML=`<div class="sub">${J.none}</div>`;return;}
   const order=j.order||[];
-  const stageLabel=k=>(CJ.stageAr&&CJ.stageAr[k])||(C.STORES[k]&&C.STORES[k].label)||k;
-  const storeLabel=k=>(C.STORES[k]&&C.STORES[k].label)||k;
-  const max=Math.max(1,...order.map(k=>j.stageDist[k]||0));
-  document.getElementById("cjFunnel").innerHTML=order.map((k,i)=>{
-    const v=j.stageDist[k]||0,w=Math.max(6,v/max*100);
-    return `<div class="fn-row"><div class="fn-name">${stageLabel(k)}</div>
-      <div class="fn-bar-wrap"><div class="fn-bar" style="width:${w}%;background:${CJCOLS[i%CJCOLS.length]}"><span class="num" title="${grp(v)}">${fmtN(v)}</span></div></div></div>`;
+  // mini KPIs
+  document.getElementById("cjKpis").innerHTML=[
+    {l:J.kMatched,v:fmtN(j.totalMatched),r:grp(j.totalMatched)},
+    {l:J.kMulti,v:fmtN(j.multiStore),r:grp(j.multiStore)},
+    {l:J.kValue,v:fmtSAR(j.multiStoreValue||0),r:grp(j.multiStoreValue||0)+" ﷼"}
+  ].map(c=>`<div class="kpi"><div class="l">${c.l}</div><div class="v"><span class="num" title="${c.r}">${c.v}</span></div></div>`).join("");
+  // stage funnel: reach + "furthest here" + value
+  const stages=j.stages||order.map(k=>({store:k,reach:(j.perStore||{})[k]||0,furthest:(j.stageDist||{})[k]||0,furthestValue:0}));
+  const max=Math.max(1,...stages.map(s=>s.reach||0));
+  document.getElementById("cjFunnel").innerHTML=stages.map((s,i)=>{
+    const w=Math.max(6,(s.reach||0)/max*100);
+    return `<div class="fn-row"><div class="fn-name">${stLabel(s.store)}</div>
+      <div class="fn-bar-wrap"><div class="fn-bar" style="width:${w}%;background:${CJCOLS[i%CJCOLS.length]}"><span class="num" title="${grp(s.reach)}">${fmtN(s.reach)}</span></div></div>
+      <div class="fn-meta">${J.hereCol}: <span class="num">${fmtN(s.furthest)}</span> · ${fmtSAR(s.furthestValue||0)}</div></div>`;
   }).join("");
-  const recos=order.map((k,i)=>({k,i,n:j.recommend[k]||0})).filter(x=>x.n>0);
+  // conversion rates between stages
+  document.getElementById("cjConv").innerHTML=(j.conversions||[]).map(c=>
+    `<div class="fn-row"><div class="fn-bar-wrap" style="height:24px"><div class="fn-bar" style="width:${Math.max(6,c.rate)}%;background:var(--good)"><span class="num">${c.rate}%</span></div></div>
+     <div class="fn-meta" style="width:auto;flex:1">${J.convLine(stStore(c.from),stStore(c.to))}</div></div>`).join("") || `<div class="sub">—</div>`;
+  // recommendations with actionable candidate customer lists
+  const recos=order.map(k=>({k,rec:j.recommend&&j.recommend[k]})).filter(x=>x.rec&&x.rec.count>0);
   document.getElementById("cjReco").innerHTML=recos.map(x=>{
-    const action=(CJ.recommendAr&&CJ.recommendAr[order[x.i-1]])||"";
-    return `<div class="cust-card" style="padding:10px 14px;margin-bottom:8px">
-      <div><span class="num" title="${grp(x.n)}" style="font-weight:800;color:var(--accent)">${fmtN(x.n)}</span> ${J.recoLine("",storeLabel(x.k))}</div>
-      ${action?`<div class="sub" style="margin-top:4px">${action}</div>`:""}</div>`;
+    const idxN=order.indexOf(x.k), action=(CJ.recommendAr&&CJ.recommendAr[order[idxN-1]])||"";
+    const rows=(x.rec.sample||[]).map(c=>`<tr>
+      <td><a class="lnk" onclick="journeyView('${c.id}','${c.store}')">${c.name||("#"+c.id)}</a></td>
+      <td class="sub">${stStore(c.store)}</td><td>${tSAR(c.revenue)}</td></tr>`).join("");
+    return `<div class="cust-card" style="padding:12px 14px;margin-bottom:10px">
+      <div><span class="num" title="${grp(x.rec.count)}" style="font-weight:800;color:var(--accent);font-size:16px">${fmtN(x.rec.count)}</span>
+        ${J.recoLine("",stStore(x.k),fmtSAR(x.rec.value||0))}</div>
+      ${action?`<div class="sub" style="margin:5px 0 8px">${action}</div>`:""}
+      ${rows?`<div class="sub" style="margin-bottom:4px">${J.candTitle}</div><div class="tbl-wrap"><table><thead><tr><th>${J.candCols.customer}</th><th>${J.candCols.store}</th><th>${J.candCols.value}</th></tr></thead><tbody>${rows}</tbody></table></div>`:""}
+    </div>`;
   }).join("") || `<div class="sub">—</div>`;
+}
+/* view a journey candidate in THEIR source store (may differ from the active store tab) */
+async function journeyView(id,store){
+  const SRx=document.getElementById("searchResult");
+  document.getElementById("custSearch").value=id;
+  SRx.innerHTML=`<div class="spinner">${U.search.searching}</div>`;
+  let d; try{const r=await apiFetch(`./api/customer?store=${encodeURIComponent(store)}&id=${encodeURIComponent(id)}`);d=await r.json();}
+  catch(e){SRx.innerHTML=`<div class="cust-card">${U.search.noResult}</div>`;return;}
+  if(d.customer)SRx.innerHTML=customerCard(d.customer,d.contact);
+  else if(d.found&&d.contact)SRx.innerHTML=contactCard(id,d.contact);
+  else SRx.innerHTML=`<div class="cust-card">${U.search.noResult}</div>`;
+  if(SRx.scrollIntoView)SRx.scrollIntoView({behavior:"smooth",block:"center"});
 }
 
 /* CSV export — a selected period exports that period's metrics + its city breakdown;

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تقويم المناسبات وفرص المبيعات — متاجر سلة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="./config.js"></script>
+<style>
+:root{
+  --bg:#0f1216;--panel:#171c23;--panel-2:#1d242d;--line:#2a323d;
+  --txt:#e8edf3;--txt-2:#9aa7b4;--txt-3:#6b7785;--accent:#4f8cff;--accent-2:#7c5cff;
+  --good:#34d399;--warn:#fbbf24;--bad:#f87171;--radius:14px;--gap:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Tajawal',-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);line-height:1.6;padding:22px}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:22px;font-weight:800}
+.sub{color:var(--txt-2);font-size:13px;margin-top:4px}
+header.top{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:16px}
+a.back{background:var(--panel);border:1px solid var(--line);color:var(--txt-2);padding:9px 16px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px}
+a.back:hover{color:var(--txt);border-color:#3a4654}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;font-size:12.5px;color:var(--txt-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.month{font-size:14px;font-weight:800;color:var(--txt);margin:22px 0 10px;display:flex;align-items:center;gap:10px}
+.month::after{content:"";flex:1;height:1px;background:var(--line)}
+.ev{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:15px 18px;margin-bottom:12px;display:flex;gap:16px;position:relative;overflow:hidden}
+.ev::before{content:"";position:absolute;inset-inline-start:0;top:0;bottom:0;width:4px}
+.ev.passed{opacity:.5}
+.ev .date{flex-shrink:0;width:72px;text-align:center}
+.ev .date .d{font-size:26px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.ev .date .m{font-size:11.5px;color:var(--txt-3);margin-top:3px}
+.ev .body{flex:1}
+.ev .nm{font-size:16px;font-weight:800;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.badge{font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px;color:#0b0e12}
+.badge.up{background:var(--warn)}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}
+.chip{font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px;background:var(--panel-2);border:1px solid var(--line);color:var(--txt-2)}
+.focus{font-size:13px;color:var(--txt-2);margin-top:6px}
+.meta{display:flex;gap:8px 18px;flex-wrap:wrap;margin-top:8px;font-size:11.5px;color:var(--txt-3)}
+.meta b{color:var(--warn);font-weight:700}
+.approx{color:var(--txt-3);font-size:11px}
+footer{color:var(--txt-3);font-size:11.5px;margin-top:24px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div><h1 id="ttl"></h1><div class="sub" id="sub"></div></div>
+    <a class="back" id="back" href="./index.html"></a>
+  </header>
+  <div class="legend" id="legend"></div>
+  <div id="cal"></div>
+  <footer id="foot"></footer>
+</div>
+<script>
+(function(){
+  var C=(window.CONFIG&&window.CONFIG.CALENDAR)||{events:[]};
+  var STORES=(window.CONFIG&&window.CONFIG.STORES)||{};
+  var T=C.types||{}, L=C.labels||{};
+  document.title=C.title||document.title;
+  document.getElementById("ttl").textContent=C.title||"التقويم";
+  document.getElementById("sub").textContent=C.sub||"";
+  document.getElementById("back").textContent=C.back||"← العودة";
+  document.getElementById("legend").innerHTML=Object.keys(T).map(function(k){
+    return '<span><span class="dot" style="background:'+T[k].color+'"></span>'+T[k].ar+'</span>';
+  }).join("");
+  var today=new Date(); today.setHours(0,0,0,0);
+  var months=(L.monthFmt)||["1","2","3","4","5","6","7","8","9","10","11","12"];
+  var storeLabel=function(k){return (STORES[k]&&STORES[k].label)||k;};
+  // sort by date, group by month
+  var evs=(C.events||[]).slice().sort(function(a,b){return a.date<b.date?-1:1;});
+  // find next upcoming
+  var nextUp=evs.filter(function(e){return new Date(e.date)>=today;})[0];
+  var html="", curMonth="";
+  evs.forEach(function(e){
+    var dt=new Date(e.date+"T00:00:00");
+    var mKey=dt.getFullYear()+"-"+dt.getMonth();
+    if(mKey!==curMonth){ curMonth=mKey; html+='<div class="month">'+months[dt.getMonth()]+" "+dt.getFullYear()+'</div>'; }
+    var passed=dt<today;
+    var ty=T[e.type]||{color:"#888",ar:e.type};
+    var isNext=nextUp&&e.date===nextUp.date&&e.name===nextUp.name;
+    var chips=(e.stores||[]).map(function(s){return '<span class="chip">'+storeLabel(s)+'</span>';}).join("");
+    html+='<div class="ev'+(passed?' passed':'')+'" style="--c:'+ty.color+'">'+
+      '<div style="position:absolute;inset-inline-start:0;top:0;bottom:0;width:4px;background:'+ty.color+'"></div>'+
+      '<div class="date"><div class="d">'+dt.getDate()+'</div><div class="m">'+months[dt.getMonth()]+'</div></div>'+
+      '<div class="body">'+
+        '<div class="nm">'+e.name+
+          ' <span class="badge" style="background:'+ty.color+'">'+ty.ar+'</span>'+
+          (isNext?' <span class="badge up">'+(L.upcoming||"قادمة")+'</span>':'')+
+          (passed?' <span class="chip">'+(L.passed||"انتهت")+'</span>':'')+
+        '</div>'+
+        (chips?'<div class="chips">'+chips+'</div>':'')+
+        '<div class="focus"><b style="color:var(--txt)">'+(L.focus||"التركيز")+':</b> '+(e.focus||"")+'</div>'+
+        '<div class="meta">'+
+          (e.lead?'<span>'+(L.lead||"ابدأ قبل")+' <b>'+e.lead+' '+(L.days||"يومًا")+'</b></span>':'')+
+          (e.approx?'<span class="approx">• '+(L.approx||"تاريخ تقريبي")+'</span>':'')+
+        '</div>'+
+      '</div></div>';
+  });
+  document.getElementById("cal").innerHTML=html||'<div class="sub">—</div>';
+  document.getElementById("foot").textContent="المصدر: config.js → CALENDAR · التواريخ الهجرية تقريبية وتُضبط عند ثبوت الرؤية.";
+})();
+</script>
+</body>
+</html>
