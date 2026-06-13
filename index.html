@@ -11,8 +11,9 @@
 <script src="./lib/segmentation.js"></script>
 <style>
 :root{
-  --bg:#0f1216;--panel:#171c23;--panel-2:#1d242d;--line:#2a323d;
-  --txt:#e8edf3;--txt-2:#9aa7b4;--txt-3:#6b7785;--accent:#4f8cff;--accent-2:#7c5cff;
+  /* brand palette: Build Station slate + cyan, Lighting green */
+  --bg:#141b21;--panel:#1b242c;--panel-2:#222e38;--line:#2e3a44;
+  --txt:#eaf0f4;--txt-2:#9fb0bc;--txt-3:#6f7e8a;--accent:#54bcdb;--accent-2:#84bf41;
   --good:#34d399;--warn:#fbbf24;--bad:#f87171;--radius:14px;--gap:16px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -93,6 +94,7 @@ tbody tr:hover{background:var(--panel-2)}
 .lnk:hover{text-decoration:underline}
 a.tab.sm{text-decoration:none;display:inline-flex;align-items:center}
 .glossary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.reco-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}
 .gl-sec h4{font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px}
 .gl-sec .gi{font-size:12px;color:var(--txt-2);margin-bottom:7px;line-height:1.7}
 .gl-sec .gi b{color:var(--txt);font-weight:700}
@@ -119,12 +121,21 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
 .spinner{text-align:center;color:var(--txt-2);padding:40px;font-size:14px}
 @media(max-width:920px){.grid2{grid-template-columns:1fr}.journey{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.journey{grid-template-columns:1fr}}
+/* brand: faint Build-Station pin watermark in the corner + crisp mark by the title */
+.brandbg{position:fixed;bottom:-60px;inset-inline-start:-40px;width:46vw;max-width:540px;height:72vh;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 152' fill='none'%3E%3Cpath d='M60 6C33 6 13 27 13 55c0 33 47 91 47 91s47-58 47-91C107 27 87 6 60 6Z' stroke='%23ffffff' stroke-width='6'/%3E%3Cg fill='%23ffffff'%3E%3Crect x='42' y='52' width='11' height='40' rx='2'/%3E%3Crect x='55' y='44' width='11' height='48' rx='2'/%3E%3Crect x='68' y='60' width='11' height='32' rx='2'/%3E%3C/g%3E%3C/svg%3E") no-repeat center/contain;
+  opacity:.045;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1}
+.brandmark{width:28px;height:36px;flex-shrink:0}
+h1{display:flex;align-items:center;gap:10px}
+.brandfoot{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:8px;font-size:12px}
 </style>
 </head>
 <body>
+<div class="brandbg"></div>
 <div class="wrap">
   <header class="top">
-    <div><h1 id="ttl"></h1><div class="sub" id="subttl"></div></div>
+    <div><h1><svg class="brandmark" viewBox="0 0 120 152" fill="none" aria-hidden="true"><path d="M60 6C33 6 13 27 13 55c0 33 47 91 47 91s47-58 47-91C107 27 87 6 60 6Z" stroke="#54bcdb" stroke-width="7"/><g fill="#54bcdb"><rect x="42" y="52" width="11" height="40" rx="2"/><rect x="55" y="44" width="11" height="48" rx="2"/><rect x="68" y="60" width="11" height="32" rx="2"/></g></svg><span id="ttl"></span></h1><div class="sub" id="subttl"></div></div>
     <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
       <div class="tabs" id="storeTabs"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -221,12 +232,11 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
     <div class="sec-head"><div><h2 id="t-cj"></h2><div class="sub" id="t-cj-sub"></div></div></div>
     <div class="kpis" id="cjKpis" style="margin-bottom:var(--gap)"></div>
     <div class="grid2">
-      <div>
-        <div class="sub" id="t-cj-funnel" style="margin-bottom:8px"></div><div class="funnel" id="cjFunnel"></div>
-        <div class="sub" id="t-cj-conv" style="margin:14px 0 8px"></div><div id="cjConv"></div>
-      </div>
-      <div><div class="sub" id="t-cj-reco" style="margin-bottom:8px"></div><div id="cjReco"></div></div>
+      <div><div class="sub" id="t-cj-funnel" style="margin-bottom:8px"></div><div class="funnel" id="cjFunnel"></div></div>
+      <div><div class="sub" id="t-cj-conv" style="margin-bottom:8px"></div><div id="cjConv"></div></div>
     </div>
+    <div class="sub" id="t-cj-reco" style="margin:18px 0 8px"></div>
+    <div id="cjReco" class="reco-grid"></div>
     <div class="sub" id="cjNote" style="margin-top:10px"></div>
   </div>
 
@@ -249,6 +259,11 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
     <div class="sub" id="t-showing" style="margin-top:10px"></div>
   </div>
 
+  <div class="brandfoot">
+    <span style="color:var(--accent);font-weight:800">محطة البناء · Build Station</span>
+    <span style="color:var(--accent-2);font-weight:800">مخازن الإضاءة · Lighting</span>
+    <span style="color:var(--txt);font-weight:800">HATCH</span>
+  </div>
   <footer id="t-footer"></footer>
 </div>
 <div id="toast"></div>
@@ -457,8 +472,8 @@ function renderSegChart(d){
     type:"bar",
     data:{labels:order.map(segAr),datasets:[{data:order.map(s=>d.segments[s].count),backgroundColor:order.map(segColor),borderRadius:6}]},
     options:{plugins:{legend:{display:false}},animation:{duration:300},
-      scales:{x:{ticks:{color:"#9aa7b4",font:{size:10}},grid:{display:false}},
-              y:{ticks:{color:"#6b7785"},grid:{color:"#2a323d"}}}}
+      scales:{x:{ticks:{color:"#9fb0bc",font:{size:10}},grid:{display:false}},
+              y:{ticks:{color:"#6f7e8a"},grid:{color:"#2e3a44"}}}}
   });
 }
 function renderRevChart(d){
@@ -466,9 +481,9 @@ function renderRevChart(d){
   if(revChart)revChart.destroy();
   revChart=new Chart(document.getElementById("revChart"),{
     type:"doughnut",
-    data:{labels:order.map(segAr),datasets:[{data:order.map(s=>d.segments[s].revenue),backgroundColor:order.map(segColor),borderColor:"#171c23",borderWidth:2}]},
+    data:{labels:order.map(segAr),datasets:[{data:order.map(s=>d.segments[s].revenue),backgroundColor:order.map(segColor),borderColor:"#1b242c",borderWidth:2}]},
     options:{cutout:"58%",animation:{duration:300},
-      plugins:{legend:{position:"left",labels:{color:"#9aa7b4",font:{size:11},boxWidth:11,padding:7}},
+      plugins:{legend:{position:"left",labels:{color:"#9fb0bc",font:{size:11},boxWidth:11,padding:7}},
       tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtSAR(c.raw)}`}}}}
   });
 }
@@ -552,7 +567,7 @@ function selectPeriod(pk){ periodSel=pk; refreshPeriodPanels(); }
 function renderTrends(d){
   const m=curSeries(d);
   if(trendChart)trendChart.destroy();
-  const barCol=m.map(x=>x.period===periodSel?"#7c5cff":"#4f8cff");   // highlight selected period
+  const barCol=m.map(x=>x.period===periodSel?"#84bf41":"#54bcdb");   // highlight selected period (green on cyan)
   trendChart=new Chart(document.getElementById("trendChart"),{
     data:{labels:m.map(x=>x.period),datasets:[
       {type:"bar",label:U.monthly.revLabel,data:m.map(x=>x.revenue),backgroundColor:barCol,borderRadius:5,yAxisID:"y"},
@@ -560,11 +575,11 @@ function renderTrends(d){
     ]},
     options:{animation:{duration:300},interaction:{mode:"index",intersect:false},
       onClick:(e,els)=>{ if(els&&els.length){ const pk=m[els[0].index].period; selectPeriod(periodSel===pk?"":pk); } },
-      plugins:{legend:{labels:{color:"#9aa7b4",boxWidth:12}},
+      plugins:{legend:{labels:{color:"#9fb0bc",boxWidth:12}},
         tooltip:{callbacks:{label:c=>c.dataset.yAxisID==="y"?` ${U.monthly.revLabel}: ${fmtSAR(c.raw)}`:` ${U.monthly.ordersLabel}: ${c.raw}`}}},
-      scales:{x:{ticks:{color:"#9aa7b4",font:{size:10}},grid:{display:false}},
-        y:{position:"right",ticks:{color:"#6b7785",callback:v=>fmtSAR(v)},grid:{color:"#2a323d"}},
-        y2:{position:"left",ticks:{color:"#6b7785"},grid:{display:false}}}}
+      scales:{x:{ticks:{color:"#9fb0bc",font:{size:10}},grid:{display:false}},
+        y:{position:"right",ticks:{color:"#6f7e8a",callback:v=>fmtSAR(v)},grid:{color:"#2e3a44"}},
+        y2:{position:"left",ticks:{color:"#6f7e8a"},grid:{display:false}}}}
   });
 }
 function renderPeriodTable(d){
@@ -632,7 +647,7 @@ function renderFailed(d){
 
 /* #4 — cross-store customer journey (fetched once; cross-store, independent of store tabs) */
 let journeyData=null;
-const CJCOLS=["#a3e635","#4f8cff","#7c5cff","#f472b6","#fb923c"];
+const CJCOLS=["#54bcdb","#84bf41","#c3ced6","#fb923c","#f472b6"]; // Build=cyan · Lighting=green · Hatch=light slate
 function sampleJourney(){
   const order=(C.CROSS_JOURNEY&&C.CROSS_JOURNEY.order)||Object.keys(C.STORES);
   const stageDist={},perStore={},stageValue={};let total=0,mv=0;
@@ -688,7 +703,7 @@ function renderJourney2(j){
     const rows=(x.rec.sample||[]).map(c=>`<tr>
       <td><a class="lnk" onclick="journeyView('${c.id}','${c.store}')">${c.name||("#"+c.id)}</a></td>
       <td class="sub">${stStore(c.store)}</td><td>${tSAR(c.revenue)}</td></tr>`).join("");
-    return `<div class="cust-card" style="padding:12px 14px;margin-bottom:10px">
+    return `<div class="cust-card" style="padding:12px 14px;margin:0">
       <div><span class="num" title="${grp(x.rec.count)}" style="font-weight:800;color:var(--accent);font-size:16px">${fmtN(x.rec.count)}</span>
         ${J.recoLine("",stStore(x.k),fmtSAR(x.rec.value||0))}</div>
       ${action?`<div class="sub" style="margin:5px 0 8px">${action}</div>`:""}
