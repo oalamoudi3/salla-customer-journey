@@ -11,10 +11,16 @@
 <script src="./lib/segmentation.js"></script>
 <style>
 :root{
-  /* brand palette: Build Station slate + cyan, Lighting green */
+  /* daylight (default) — easy on the eyes, suits the brand logos */
+  --bg:#eaeef2;--panel:#ffffff;--panel-2:#f1f5f8;--line:#d8e0e8;
+  --txt:#16202a;--txt-2:#54636f;--txt-3:#83929e;--accent:#2a9fc4;--accent-2:#5fa630;
+  --good:#15a06b;--warn:#b9810b;--bad:#d6453f;--radius:14px;--gap:16px;
+  --shadow:0 1px 3px rgba(16,32,48,.07),0 1px 2px rgba(16,32,48,.05);
+}
+[data-theme="dark"]{
   --bg:#141b21;--panel:#1b242c;--panel-2:#222e38;--line:#2e3a44;
   --txt:#eaf0f4;--txt-2:#9fb0bc;--txt-3:#6f7e8a;--accent:#54bcdb;--accent-2:#84bf41;
-  --good:#34d399;--warn:#fbbf24;--bad:#f87171;--radius:14px;--gap:16px;
+  --good:#34d399;--warn:#fbbf24;--bad:#f87171;--shadow:none;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Tajawal',-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);line-height:1.5;padding:22px}
@@ -73,7 +79,7 @@ canvas{max-height:300px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead th{text-align:start;padding:10px 11px;border-bottom:2px solid var(--line);color:var(--txt-3);font-size:11.5px;font-weight:700;white-space:nowrap;cursor:pointer;user-select:none}
 thead th:hover{color:var(--txt)}
-tbody td{padding:10px 11px;border-bottom:1px solid #20262e;vertical-align:middle}
+tbody td{padding:10px 11px;border-bottom:1px solid var(--line);vertical-align:middle}
 tbody tr:hover{background:var(--panel-2)}
 .seg-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-inline-end:7px;vertical-align:middle}
 .seg-name{font-weight:700}
@@ -121,24 +127,43 @@ footer{color:var(--txt-3);font-size:11.5px;margin-top:10px;text-align:center}
 .spinner{text-align:center;color:var(--txt-2);padding:40px;font-size:14px}
 @media(max-width:920px){.grid2{grid-template-columns:1fr}.journey{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.journey{grid-template-columns:1fr}}
-/* brand: faint Build-Station pin watermark in the corner + crisp mark by the title */
-.brandbg{position:fixed;bottom:-60px;inset-inline-start:-40px;width:46vw;max-width:540px;height:72vh;
-  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 152' fill='none'%3E%3Cpath d='M60 6C33 6 13 27 13 55c0 33 47 91 47 91s47-58 47-91C107 27 87 6 60 6Z' stroke='%23ffffff' stroke-width='6'/%3E%3Cg fill='%23ffffff'%3E%3Crect x='42' y='52' width='11' height='40' rx='2'/%3E%3Crect x='55' y='44' width='11' height='48' rx='2'/%3E%3Crect x='68' y='60' width='11' height='32' rx='2'/%3E%3C/g%3E%3C/svg%3E") no-repeat center/contain;
-  opacity:.045;pointer-events:none;z-index:0}
+/* contrast: panels lift off the background (shadow in light, flat in dark) */
+.kpi,.card,.cust-card{box-shadow:var(--shadow)}
+/* brand: per-store logo — crisp mark by the title + a faint watermark in the corner */
+.brandbg{position:fixed;bottom:-30px;inset-inline-start:-30px;width:38vw;max-width:440px;height:60vh;
+  background-position:center;background-repeat:no-repeat;background-size:contain;opacity:.05;pointer-events:none;z-index:0;
+  filter:grayscale(.2)}
 .wrap{position:relative;z-index:1}
-.brandmark{width:28px;height:36px;flex-shrink:0}
-h1{display:flex;align-items:center;gap:10px}
+.brandmark{height:36px;width:auto;max-width:130px;flex-shrink:0;border-radius:7px;background:#fff;padding:3px 5px;object-fit:contain}
+h1{display:flex;align-items:center;gap:11px}
 .brandfoot{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:8px;font-size:12px}
+/* theme toggle */
+.icobtn{background:var(--panel);border:1px solid var(--line);color:var(--txt-2);padding:8px 12px;border-radius:10px;cursor:pointer;font-size:14px;font-family:inherit;font-weight:700}
+.icobtn:hover{color:var(--txt);border-color:var(--accent)}
+/* in-page section nav */
+.secnav{position:sticky;top:0;z-index:5;display:flex;gap:7px;flex-wrap:wrap;padding:10px 0;margin-bottom:6px;background:var(--bg);border-bottom:1px solid var(--line)}
+.secnav a{font-size:12px;font-weight:700;color:var(--txt-2);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:5px 12px;text-decoration:none;white-space:nowrap}
+.secnav a:hover{color:#fff;background:var(--accent);border-color:var(--accent)}
+/* collapsible cards (header = .sec-head wrapper or a bare h2 direct child) */
+.card.collapsible>.sec-head,.card.collapsible>h2{cursor:pointer;user-select:none}
+.card.collapsible>.sec-head h2::after,.card.collapsible>h2::after{content:" ▾";color:var(--txt-3);font-size:12px;font-weight:400}
+.card.collapsed>.sec-head h2::after,.card.collapsed>h2::after{content:" ▸"}
+.card.collapsed>*:not(.sec-head):not(h2){display:none!important}
+/* freshness / updating badge */
+.fresh{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--txt-2)}
+.fresh .dotpulse{width:8px;height:8px;border-radius:50%;background:var(--warn);animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
 </style>
 </head>
 <body>
 <div class="brandbg"></div>
 <div class="wrap">
   <header class="top">
-    <div><h1><svg class="brandmark" viewBox="0 0 120 152" fill="none" aria-hidden="true"><path d="M60 6C33 6 13 27 13 55c0 33 47 91 47 91s47-58 47-91C107 27 87 6 60 6Z" stroke="#54bcdb" stroke-width="7"/><g fill="#54bcdb"><rect x="42" y="52" width="11" height="40" rx="2"/><rect x="55" y="44" width="11" height="48" rx="2"/><rect x="68" y="60" width="11" height="32" rx="2"/></g></svg><span id="ttl"></span></h1><div class="sub" id="subttl"></div></div>
+    <div><h1><img class="brandmark" id="brandLogo" alt="" src="./Build_Station_Logo.jpeg"><span id="ttl"></span></h1><div class="sub" id="subttl"></div></div>
     <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
       <div class="tabs" id="storeTabs"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="icobtn" id="themeBtn" type="button" title="تبديل الوضع الليلي/النهاري">🌙</button>
         <button class="tab sm" id="glossaryBtn" type="button"></button>
         <a class="tab sm" id="calendarLink" href="./calendar.html"></a>
       </div>
@@ -170,6 +195,8 @@ h1{display:flex;align-items:center;gap:10px}
     <span class="sub" id="monthHint"></span>
   </div>
   <div class="banner" id="snapshotNote" style="display:none"></div>
+
+  <nav class="secnav" id="secnav"></nav>
 
   <section class="kpis" id="kpis"><div class="spinner">جارٍ التحميل…</div></section>
 
@@ -286,6 +313,33 @@ const grp = v => (Math.round(Number(v)||0)).toLocaleString("en-US");
 const tN = v => `<span class="num" title="${grp(v)}">${fmtN(v)}</span>`;
 const tSAR = v => `<span class="num" title="${grp(v)} ﷼">${fmtSAR(v)}</span>`;
 const segColor = s => (C.SEGMENTS[s]||{}).color || "#888";
+/* theme-aware chart colors (read live CSS vars so light/dark + per-store accent apply) */
+function chartColors(){const s=getComputedStyle(document.documentElement);const g=n=>s.getPropertyValue(n).trim();return {txt2:g('--txt-2'),txt3:g('--txt-3'),line:g('--line'),panel:g('--panel'),accent:g('--accent'),accent2:g('--accent-2'),good:g('--good')};}
+/* light (daylight) default + dark toggle, persisted */
+const THEME_LS="salla_theme";
+function applyTheme(t){t=(t==="dark")?"dark":"light";document.documentElement.setAttribute("data-theme",t);const b=document.getElementById("themeBtn");if(b)b.textContent=t==="dark"?"☀️":"🌙";localStorage.setItem(THEME_LS,t);}
+/* per-store brand: accent color + logo (header mark + faint corner watermark) */
+function applyStoreBrand(k){const st=C.STORES[k]||{},b=st.brand||{},r=document.documentElement.style;
+  if(b.accent)r.setProperty('--accent',b.accent); if(b.accent2)r.setProperty('--accent-2',b.accent2);
+  const img=document.getElementById("brandLogo"); if(img&&st.logo)img.src=st.logo;
+  const bb=document.querySelector(".brandbg"); if(bb&&st.logo)bb.style.backgroundImage="url('"+st.logo+"')";}
+/* in-page nav + collapsible sections (page is long) — secondary tables collapsed by default */
+function setupNavCollapse(){
+  const nav=document.getElementById("secnav"); if(!nav) return;
+  const collapseByDefault=new Set(["t-journey","t-cat","t-geo","t-aband","t-failed","t-act"]);
+  const cards=[...document.querySelectorAll(".card")].filter(c=>c.querySelector("h2")&&c.id!=="glossaryCard");
+  nav.innerHTML="";
+  cards.forEach((card,i)=>{
+    const h2=card.querySelector("h2"); card.id=card.id||("sec"+i);
+    const head=card.querySelector(".sec-head")||h2;
+    card.classList.add("collapsible");
+    if(!head._navwired){head._navwired=1;head.addEventListener("click",e=>{if(e.target.closest("button,a,select,input,label"))return;card.classList.toggle("collapsed");});}
+    if(collapseByDefault.has(h2.id))card.classList.add("collapsed");
+    const a=document.createElement("a"); a.href="#"+card.id; a.textContent=(h2.textContent||"").trim()||("قسم "+(i+1));
+    a.onclick=e=>{e.preventDefault();card.classList.remove("collapsed");card.scrollIntoView({behavior:"smooth",block:"start"});};
+    nav.appendChild(a);
+  });
+}
 const segAr = s => (C.SEGMENTS[s]||{}).ar || s;
 
 /* access gate: ask once for the shared passphrase, keep it in localStorage, and send
@@ -356,7 +410,7 @@ function renderTabs(){
     const b=document.createElement("button");
     b.className="tab"+(k===current?" active":"");
     b.textContent=C.STORES[k].label;
-    b.onclick=()=>{current=k;segFilterVal="";periodSel="";typeSel="";document.getElementById("custSearch").value="";document.getElementById("searchResult").innerHTML="";load();};
+    b.onclick=()=>{current=k;segFilterVal="";periodSel="";typeSel="";applyStoreBrand(k);document.getElementById("custSearch").value="";document.getElementById("searchResult").innerHTML="";load();};
     el.appendChild(b);
   });
 }
@@ -405,16 +459,21 @@ async function load(){
   renderAll(data);
 }
 
+function relAr(ms){const s=Math.max(0,(Date.now()-ms)/1000);if(s<90)return "الآن";const m=s/60;if(m<90)return "قبل "+Math.round(m)+" دقيقة";const h=m/60;if(h<36)return "قبل "+Math.round(h)+" ساعة";return "قبل "+Math.round(h/24)+" يوم";}
 function renderStatus(d){
   const pill=document.getElementById("srcPill");
   const map={live:["live",U.live],sample:["sample",U.sample],offline:["offline",U.offline]};
   const [cls,txt]=map[d.source]||["sample",U.sample];
   pill.className="pill "+cls; pill.textContent=txt;
-  const when=new Date(d.generatedAt||Date.now()).toLocaleString("ar-SA");
-  let meta=`${U.updated}: ${when}`;
-  if(d.source==="live") meta+=` · ${fmtN(d.ordersScanned||0)} ${U.ordersScanned}`+(d.capped?" · ⚠︎":"");
-  document.getElementById("srcMeta").textContent=meta;
-  document.getElementById("banner").classList.toggle("show", d.source!=="live");
+  const meta=document.getElementById("srcMeta");
+  if(d.source==="live"){
+    const when=new Date(d.generatedAt||Date.now()).toLocaleString("ar-SA");
+    meta.innerHTML=`<span class="fresh">${U.updated}: ${relAr(d.generatedAt||Date.now())} <span class="sub" style="font-size:11px">(${when})</span></span> · ${fmtN(d.ordersScanned||0)} ${U.ordersScanned}`+(d.capped?" · ⚠︎":"");
+    document.getElementById("banner").classList.remove("show");
+  }else{
+    meta.innerHTML=`<span class="fresh"><span class="dotpulse"></span>${U.preparing}</span>`;
+    document.getElementById("banner").classList.add("show");
+  }
 }
 
 /* ▲/▼ badge vs the previous period (null prev → no badge) */
@@ -466,24 +525,24 @@ function renderKPIs(d,v){
 }
 
 function renderSegChart(d){
-  const order=Object.keys(C.SEGMENTS).filter(s=>d.segments[s]);
+  const order=Object.keys(C.SEGMENTS).filter(s=>d.segments[s]), cc=chartColors();
   if(segChart)segChart.destroy();
   segChart=new Chart(document.getElementById("segChart"),{
     type:"bar",
     data:{labels:order.map(segAr),datasets:[{data:order.map(s=>d.segments[s].count),backgroundColor:order.map(segColor),borderRadius:6}]},
     options:{plugins:{legend:{display:false}},animation:{duration:300},
-      scales:{x:{ticks:{color:"#9fb0bc",font:{size:10}},grid:{display:false}},
-              y:{ticks:{color:"#6f7e8a"},grid:{color:"#2e3a44"}}}}
+      scales:{x:{ticks:{color:cc.txt2,font:{size:10}},grid:{display:false}},
+              y:{ticks:{color:cc.txt3},grid:{color:cc.line}}}}
   });
 }
 function renderRevChart(d){
-  const order=Object.keys(C.SEGMENTS).filter(s=>d.segments[s]);
+  const order=Object.keys(C.SEGMENTS).filter(s=>d.segments[s]), cc=chartColors();
   if(revChart)revChart.destroy();
   revChart=new Chart(document.getElementById("revChart"),{
     type:"doughnut",
-    data:{labels:order.map(segAr),datasets:[{data:order.map(s=>d.segments[s].revenue),backgroundColor:order.map(segColor),borderColor:"#1b242c",borderWidth:2}]},
+    data:{labels:order.map(segAr),datasets:[{data:order.map(s=>d.segments[s].revenue),backgroundColor:order.map(segColor),borderColor:cc.panel,borderWidth:2}]},
     options:{cutout:"58%",animation:{duration:300},
-      plugins:{legend:{position:"left",labels:{color:"#9fb0bc",font:{size:11},boxWidth:11,padding:7}},
+      plugins:{legend:{position:"left",labels:{color:cc.txt2,font:{size:11},boxWidth:11,padding:7}},
       tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtSAR(c.raw)}`}}}}
   });
 }
@@ -565,21 +624,21 @@ function refreshPeriodPanels(){ const d=cache[current]; document.getElementById(
   renderKPIs(d,viewData()); renderTrends(d); renderPeriodTable(d); renderGeo(d); renderCategories(d); updateSnapshotNote(); }
 function selectPeriod(pk){ periodSel=pk; refreshPeriodPanels(); }
 function renderTrends(d){
-  const m=curSeries(d);
+  const m=curSeries(d), cc=chartColors();
   if(trendChart)trendChart.destroy();
-  const barCol=m.map(x=>x.period===periodSel?"#84bf41":"#54bcdb");   // highlight selected period (green on cyan)
+  const barCol=m.map(x=>x.period===periodSel?cc.accent2:cc.accent);   // highlight selected period
   trendChart=new Chart(document.getElementById("trendChart"),{
     data:{labels:m.map(x=>x.period),datasets:[
       {type:"bar",label:U.monthly.revLabel,data:m.map(x=>x.revenue),backgroundColor:barCol,borderRadius:5,yAxisID:"y"},
-      {type:"line",label:U.monthly.ordersLabel,data:m.map(x=>x.orders),borderColor:"#34d399",backgroundColor:"#34d399",tension:.3,yAxisID:"y2"}
+      {type:"line",label:U.monthly.ordersLabel,data:m.map(x=>x.orders),borderColor:cc.good,backgroundColor:cc.good,tension:.3,yAxisID:"y2"}
     ]},
     options:{animation:{duration:300},interaction:{mode:"index",intersect:false},
       onClick:(e,els)=>{ if(els&&els.length){ const pk=m[els[0].index].period; selectPeriod(periodSel===pk?"":pk); } },
-      plugins:{legend:{labels:{color:"#9fb0bc",boxWidth:12}},
+      plugins:{legend:{labels:{color:cc.txt2,boxWidth:12}},
         tooltip:{callbacks:{label:c=>c.dataset.yAxisID==="y"?` ${U.monthly.revLabel}: ${fmtSAR(c.raw)}`:` ${U.monthly.ordersLabel}: ${c.raw}`}}},
-      scales:{x:{ticks:{color:"#9fb0bc",font:{size:10}},grid:{display:false}},
-        y:{position:"right",ticks:{color:"#6f7e8a",callback:v=>fmtSAR(v)},grid:{color:"#2e3a44"}},
-        y2:{position:"left",ticks:{color:"#6f7e8a"},grid:{display:false}}}}
+      scales:{x:{ticks:{color:cc.txt2,font:{size:10}},grid:{display:false}},
+        y:{position:"right",ticks:{color:cc.txt3,callback:v=>fmtSAR(v)},grid:{color:cc.line}},
+        y2:{position:"left",ticks:{color:cc.txt3},grid:{display:false}}}}
   });
 }
 function renderPeriodTable(d){
@@ -711,18 +770,24 @@ function renderJourney2(j){
     </div>`;
   }).join("") || `<div class="sub">—</div>`;
 }
-/* view a journey candidate in THEIR source store (may differ from the active store tab) */
-async function journeyView(id,store){
+/* click a customer → OPEN their Salla account in a NEW TAB + show the card in place
+   (no scroll/navigation). The blank tab is opened synchronously (in the click gesture) to
+   dodge popup blockers, then pointed at the admin URL once the lookup returns. store is
+   optional (journey candidates live in their own store). */
+async function openCustomerTab(id,store){
   const SRx=document.getElementById("searchResult");
+  const w=window.open("about:blank","_blank");           // reserve the tab within the user gesture
   document.getElementById("custSearch").value=id;
   SRx.innerHTML=`<div class="spinner">${U.search.searching}</div>`;
-  let d; try{const r=await apiFetch(`./api/customer?store=${encodeURIComponent(store)}&id=${encodeURIComponent(id)}`);d=await r.json();}
-  catch(e){SRx.innerHTML=`<div class="cust-card">${U.search.noResult}</div>`;return;}
+  let d; try{const r=await apiFetch(`./api/customer?store=${encodeURIComponent(store||current)}&id=${encodeURIComponent(id)}`);d=await r.json();}
+  catch(e){ if(w)w.close(); SRx.innerHTML=`<div class="cust-card">${U.search.noResult}</div>`; return; }
+  const adminUrl=(d.contact&&d.contact.adminUrl)||"";
   if(d.customer)SRx.innerHTML=customerCard(d.customer,d.contact);
   else if(d.found&&d.contact)SRx.innerHTML=contactCard(id,d.contact);
   else SRx.innerHTML=`<div class="cust-card">${U.search.noResult}</div>`;
-  if(SRx.scrollIntoView)SRx.scrollIntoView({behavior:"smooth",block:"center"});
+  if(w){ if(adminUrl)w.location.href=adminUrl; else w.close(); }   // open account, or close the blank tab
 }
+const journeyView=openCustomerTab;
 
 /* CSV export — a selected period exports that period's metrics + its city breakdown;
    otherwise the whole current-granularity series. UTF-8 BOM so Excel reads Arabic. */
@@ -830,10 +895,16 @@ function matchesList(ms){
   return `<div class="cust-card" style="padding:8px 12px"><div class="sub" style="margin:6px 4px 10px">${s.matchesTitle} — <span class="num">${ms.length}</span></div>
     <div class="tbl-wrap"><table><tbody>${rows}</tbody></table></div></div>`;
 }
-function viewCustomer(id){document.getElementById("custSearch").value=id;doCustomerSearch();const sr=document.getElementById("searchResult");if(sr&&sr.scrollIntoView)sr.scrollIntoView({behavior:"smooth",block:"center"});}
+function viewCustomer(id){openCustomerTab(id,current);}
 document.getElementById("custSearchBtn").onclick=doCustomerSearch;
 document.getElementById("custSearch").addEventListener("keydown",e=>{if(e.key==="Enter")doCustomerSearch();});
 document.getElementById("custSearch").addEventListener("search",doCustomerSearch);
+
+/* theme + brand init */
+applyTheme(localStorage.getItem(THEME_LS)||"light");
+applyStoreBrand(current);
+setupNavCollapse();
+document.getElementById("themeBtn").onclick=()=>{const dark=document.documentElement.getAttribute("data-theme")==="dark";applyTheme(dark?"light":"dark");applyStoreBrand(current);if(cache[current])renderAll(cache[current]);if(journeyData)renderJourney2(journeyData);};
 
 load();
 loadJourney();
